@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Game - Spirit Animals</title>
+  <link rel="stylesheet" href="css/themes.css">
+  <link rel="stylesheet" href="css/board.css">
+</head>
+<body class="theme-dragon">
+  <div id="game-screen">
+    <div id="board-container">
+      <canvas id="board"></canvas>
+    </div>
+
+    <div id="controls">
+      <button id="pass-btn">Pass</button>
+      <button id="resign-btn">Resign</button>
+    </div>
+
+    <div id="info">
+      <span id="move-count">Move 0</span>
+      <span id="current-turn">Black to play</span>
+      <span id="last-move"></span>
+    </div>
+
+    <img id="spirit-portrait" src="" alt="Spirit Portrait">
+  </div>
+
+  <script src="js/board.js"></script>
+  <script src="js/websocket.js"></script>
+  <script src="js/theme.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>

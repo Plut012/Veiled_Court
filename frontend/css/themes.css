@@ -1,0 +1,79 @@
+/* Spirit Animals Go - Theme System */
+/* All nine spirit palettes defined as CSS custom properties */
+
+:root {
+  /* Default palette (Dragon) */
+  --board-primary: #0D1F1A;
+  --board-secondary: #2E6B55;
+  --accent: #C9A84C;
+}
+
+/* Dragon - Living Go */
+.theme-dragon {
+  --board-primary: #0D1F1A;
+  --board-secondary: #2E6B55;
+  --accent: #C9A84C;
+}
+
+/* Mantis Shrimp - The AI Disciple */
+.theme-mantis-shrimp {
+  --board-primary: #080B10;
+  --board-secondary: #0D4D5E;
+  --accent: #9B5DE5;
+}
+
+/* Crane - The Classicist */
+.theme-crane {
+  --board-primary: #E8E4DC;
+  --board-secondary: #4A4A52;
+  --accent: #A8B8C8;
+}
+
+/* Spider - The Trickster */
+.theme-spider {
+  --board-primary: #0F1410;
+  --board-secondary: #3A3F38;
+  --accent: #C17D2A;
+}
+
+/* Eagle - The Moyo Artist */
+.theme-eagle {
+  --board-primary: #1A2535;
+  --board-secondary: #6B7A8D;
+  --accent: #D4A843;
+}
+
+/* Lion - The Territorial Builder */
+.theme-lion {
+  --board-primary: #2A1E0F;
+  --board-secondary: #8B6914;
+  --accent: #E8A020;
+}
+
+/* Praying Mantis - The Blood Warrior */
+.theme-praying-mantis {
+  --board-primary: #0C0F0C;
+  --board-secondary: #1A4030;
+  --accent: #8B1A1A;
+}
+
+/* Jaguar - The Endgame Assassin (Warm) */
+.theme-jaguar {
+  --board-primary: #1C1508;
+  --board-secondary: #5C3D1A;
+  --accent: #C9A870;
+}
+
+/* Jaguar - Cold variant (applied dynamically) */
+.theme-jaguar-cold {
+  --board-primary: #0A0C10;
+  --board-secondary: #2A3040;
+  --accent: #B0C4D8;
+}
+
+/* Crow - The Ko Monster */
+.theme-crow {
+  --board-primary: #12141A;
+  --board-secondary: #2E3340;
+  --accent: #E8EEF4;
+}

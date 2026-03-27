@@ -1,0 +1,262 @@
+/* Spirit Animals Go - Board Styles */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--board-primary);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: var(--board-secondary);
+  min-height: 100vh;
+  transition: background 0.5s ease;
+}
+
+/* Selection Screen */
+#selection-screen {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+#selection-screen h1 {
+  color: var(--accent);
+  font-size: 32px;
+  text-align: center;
+  margin-bottom: 10px;
+}
+
+#selection-screen p {
+  color: var(--board-secondary);
+  text-align: center;
+  margin-bottom: 30px;
+  font-size: 16px;
+}
+
+/* Spirit Grid */
+#spirit-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  margin-bottom: 30px;
+}
+
+@media (max-width: 768px) {
+  #spirit-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 15px;
+  }
+}
+
+@media (max-width: 480px) {
+  #spirit-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.spirit-card {
+  background: var(--board-secondary);
+  border: 2px solid transparent;
+  border-radius: 8px;
+  padding: 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.spirit-card:hover {
+  border-color: var(--accent);
+  transform: translateY(-4px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.spirit-card.selected {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.spirit-card h3 {
+  font-size: 24px;
+  margin-bottom: 8px;
+}
+
+.spirit-card p {
+  font-size: 14px;
+  opacity: 0.8;
+}
+
+/* Game Options */
+#game-options {
+  display: flex;
+  gap: 15px;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+#game-options label {
+  color: var(--board-secondary);
+  font-size: 14px;
+}
+
+#game-options select {
+  background: var(--board-secondary);
+  color: var(--board-primary);
+  border: 1px solid var(--accent);
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+#start-game-btn {
+  display: block;
+  width: 100%;
+  max-width: 400px;
+  margin: 0 auto;
+  padding: 16px;
+  background: var(--accent);
+  color: var(--board-primary);
+  border: none;
+  border-radius: 8px;
+  font-size: 18px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+#start-game-btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+#start-game-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Game Screen */
+#game-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px;
+  min-height: 100vh;
+}
+
+#board-container {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto 20px;
+}
+
+#board {
+  max-width: 100%;
+  max-height: 80vh;
+  cursor: pointer;
+}
+
+/* Controls */
+#controls {
+  display: flex;
+  gap: 15px;
+  margin-bottom: 15px;
+}
+
+#controls button {
+  padding: 12px 24px;
+  background: transparent;
+  color: var(--board-secondary);
+  border: 2px solid var(--board-secondary);
+  border-radius: 6px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+#controls button:hover {
+  background: var(--board-secondary);
+  color: var(--board-primary);
+}
+
+/* Info Display */
+#info {
+  display: flex;
+  gap: 20px;
+  justify-content: center;
+  align-items: center;
+  color: var(--accent);
+  font-size: 16px;
+  margin-bottom: 15px;
+}
+
+#spirit-portrait {
+  display: none;
+  max-width: 100px;
+  border-radius: 50%;
+  border: 3px solid var(--accent);
+}
+
+/* Loading State */
+.loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  color: var(--accent);
+  font-size: 18px;
+}
+
+.loading::after {
+  content: '';
+  display: block;
+  width: 40px;
+  height: 40px;
+  margin-top: 20px;
+  border: 4px solid var(--board-secondary);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Ko Dim Effect (for Crow) */
+.ko-dim #board {
+  opacity: 0.6;
+}
+
+.ko-highlight {
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  #selection-screen h1 {
+    font-size: 24px;
+  }
+
+  #game-options {
+    flex-direction: column;
+  }
+
+  #controls button {
+    padding: 10px 20px;
+    font-size: 14px;
+  }
+}

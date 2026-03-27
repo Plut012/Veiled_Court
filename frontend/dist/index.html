@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Spirit Animals - Go</title>
+  <link rel="stylesheet" href="css/themes.css">
+  <link rel="stylesheet" href="css/board.css">
+</head>
+<body class="theme-dragon">
+  <div id="selection-screen">
+    <h1>The Spirit Animals of Go</h1>
+    <p>Choose your opponent. Study their nature. The board will reveal your own.</p>
+
+    <div id="spirit-grid">
+      <!-- Dragon - Living Go -->
+      <div class="spirit-card" data-spirit="dragon" data-theme="theme-dragon">
+        <h3>🐉 Dragon</h3>
+        <p>Living Go</p>
+      </div>
+
+      <!-- Mantis Shrimp - The AI Disciple -->
+      <div class="spirit-card" data-spirit="mantis_shrimp" data-theme="theme-mantis-shrimp">
+        <h3>🦐 Mantis Shrimp</h3>
+        <p>The AI Disciple</p>
+      </div>
+
+      <!-- Crane - The Classicist -->
+      <div class="spirit-card" data-spirit="crane" data-theme="theme-crane">
+        <h3>🕊️ Crane</h3>
+        <p>The Classicist</p>
+      </div>
+
+      <!-- Spider - The Trickster -->
+      <div class="spirit-card" data-spirit="spider" data-theme="theme-spider">
+        <h3>🕷️ Spider</h3>
+        <p>The Trickster</p>
+      </div>
+
+      <!-- Eagle - The Moyo Artist -->
+      <div class="spirit-card" data-spirit="eagle" data-theme="theme-eagle">
+        <h3>🦅 Eagle</h3>
+        <p>The Moyo Artist</p>
+      </div>
+
+      <!-- Lion - The Territorial Builder -->
+      <div class="spirit-card" data-spirit="lion" data-theme="theme-lion">
+        <h3>🦁 Lion</h3>
+        <p>The Territorial Builder</p>
+      </div>
+
+      <!-- Praying Mantis - The Blood Warrior -->
+      <div class="spirit-card" data-spirit="praying_mantis" data-theme="theme-praying-mantis">
+        <h3>🦗 Praying Mantis</h3>
+        <p>The Blood Warrior</p>
+      </div>
+
+      <!-- Jaguar - The Endgame Assassin -->
+      <div class="spirit-card" data-spirit="jaguar" data-theme="theme-jaguar">
+        <h3>🐆 Jaguar</h3>
+        <p>The Endgame Assassin</p>
+      </div>
+
+      <!-- Crow - The Ko Monster -->
+      <div class="spirit-card" data-spirit="crow" data-theme="theme-crow">
+        <h3>🐦‍⬛ Crow</h3>
+        <p>The Ko Monster</p>
+      </div>
+    </div>
+
+    <div id="game-options">
+      <div>
+        <label for="board-size">Board Size:</label>
+        <select id="board-size">
+          <option value="9">9×9</option>
+          <option value="13">13×13</option>
+          <option value="19" selected>19×19</option>
+        </select>
+      </div>
+
+      <div>
+        <label for="player-color">Your Color:</label>
+        <select id="player-color">
+          <option value="black">Black</option>
+          <option value="white" selected>White</option>
+        </select>
+      </div>
+    </div>
+
+    <button id="start-game-btn" disabled>Select a Spirit to Begin</button>
+  </div>
+
+  <script src="js/selection.js"></script>
+</body>
+</html>
