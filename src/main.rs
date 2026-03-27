@@ -15,13 +15,14 @@ use state::AppState;
 
 #[tokio::main]
 async fn main() {
+    println!("Spirit Animals Go - Starting server...");
+
     // Initialize shared state
     let state = Arc::new(AppState::new());
 
     let app = Router::new()
         .route("/ws", get(ws::handler))
-        .nest_service("/themes", ServeDir::new("themes"))
-        .nest_service("/", ServeDir::new("frontend/dist"))
+        .nest_service("/", ServeDir::new("frontend"))
         .with_state(state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));

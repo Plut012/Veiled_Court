@@ -5,59 +5,51 @@ use axum::{
 use futures::{sink::SinkExt, stream::StreamExt};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tokio::sync::mpsc;
-use crate::game::{Color, Position, Group};
-use crate::state::{AppState, PlayerConnection};
+use uuid::Uuid;
+
+use crate::game::{Color, Position, Game};
+use crate::katago::{KataGoProcess, jaguar};
+use crate::spirits::Spirit;
+use crate::state::{AppState, SessionData, SessionId};
 
 /// Messages sent from client to server
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 enum ClientMessage {
-    ChooseColor {
-        color: Color,
+    InitGame {
+        spirit: String,
+        board_size: usize,
+        player_color: String,
     },
-    Move { x: usize, y: usize },
+    Move {
+        coord: String, // e.g. "D4"
+    },
     Pass,
-    Reset { board_size: usize },
+    Resign,
 }
 
 /// Messages sent from server to client
 #[derive(Debug, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 enum ServerMessage {
-    State {
-        board: Vec<Vec<Option<Color>>>,
+    GameStarted {
+        session_id: String,
         board_size: usize,
-        turn: Color,
-        prisoners: Prisoners,
-        players: Players,
-        passes: u8,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        ownership: Option<Vec<Vec<f32>>>,
-        katago_available: bool,
-        groups: Vec<Group>,
     },
-    OwnershipUpdate {
-        ownership: Vec<Vec<f32>>,
+    BoardUpdate {
+        board: Vec<Vec<Option<String>>>, // "black", "white", or null
+        last_move: Option<String>,
+        move_number: usize,
+    },
+    KoActive {
+        threats: Vec<String>, // Crow only - placeholder for now
+    },
+    GameOver {
+        winner: String,
     },
     Error {
         message: String,
     },
-    YourColor {
-        color: Option<Color>,
-    },
-}
-
-#[derive(Debug, Serialize)]
-struct Prisoners {
-    black: u32,
-    white: u32,
-}
-
-#[derive(Debug, Serialize)]
-struct Players {
-    black: bool,
-    white: bool,
 }
 
 /// WebSocket connection handler
@@ -67,326 +59,315 @@ pub async fn handler(ws: WebSocketUpgrade, State(state): State<Arc<AppState>>) -
 
 /// Handle individual WebSocket connection
 async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
-    let conn_id = state.new_connection_id().await;
-    println!("WebSocket connection established: {}", conn_id);
+    println!("WebSocket connection established");
 
-    // Split socket into sender and receiver
-    let (mut ws_sender, mut ws_receiver) = socket.split();
+    let (mut sender, mut receiver) = socket.split();
 
-    // Create channel for this connection
-    let (tx, mut rx) = mpsc::unbounded_channel::<String>();
+    // Handle incoming messages
+    while let Some(Ok(msg)) = receiver.next().await {
+        if let Message::Text(text) = msg {
+            let response = handle_message(&state, &text).await;
 
-    // Register connection
-    {
-        let mut connections = state.connections.lock().await;
-        connections.insert(conn_id, PlayerConnection {
-            color: None,
-            sender: tx,
-        });
-    }
-
-    // Send initial state and color assignment
-    broadcast_state(&state).await;
-    send_your_color(&state, conn_id).await;
-
-    // Spawn task to forward messages from channel to WebSocket
-    let mut send_task = tokio::spawn(async move {
-        while let Some(msg) = rx.recv().await {
-            if ws_sender.send(Message::Text(msg)).await.is_err() {
+            // Send response
+            let response_json = serde_json::to_string(&response).unwrap();
+            if sender.send(Message::Text(response_json)).await.is_err() {
                 break;
             }
         }
-    });
-
-    // Handle incoming messages
-    let state_clone = state.clone();
-    let mut recv_task = tokio::spawn(async move {
-        while let Some(Ok(msg)) = ws_receiver.next().await {
-            if let Message::Text(text) = msg {
-                handle_message(&state_clone, conn_id, &text).await;
-            }
-        }
-    });
-
-    // Wait for either task to finish (connection closed)
-    tokio::select! {
-        _ = (&mut send_task) => recv_task.abort(),
-        _ = (&mut recv_task) => send_task.abort(),
     }
 
-    // Clean up connection
-    let mut connections = state.connections.lock().await;
-    connections.remove(&conn_id);
-    println!("WebSocket connection closed: {}", conn_id);
-
-    // Broadcast updated state (color is now available)
-    drop(connections);
-    broadcast_state(&state).await;
-}
-
-/// Broadcast current game state to all connections
-async fn broadcast_state(state: &AppState) {
-    let game = state.game.lock().await;
-    let connections = state.connections.lock().await;
-
-    // Determine which colors are assigned
-    let mut black_assigned = false;
-    let mut white_assigned = false;
-
-    for conn in connections.values() {
-        if conn.color == Some(Color::Black) {
-            black_assigned = true;
-        }
-        if conn.color == Some(Color::White) {
-            white_assigned = true;
-        }
-    }
-
-    // Check if KataGo is available
-    let katago_available = state.katago.lock().await.is_some();
-
-    // Detect groups on the board
-    let groups = game.detect_groups();
-
-    let msg = ServerMessage::State {
-        board: game.get_board(),
-        board_size: game.get_board_size(),
-        turn: game.get_turn(),
-        prisoners: Prisoners {
-            black: game.get_prisoners().0,
-            white: game.get_prisoners().1,
-        },
-        players: Players {
-            black: black_assigned,
-            white: white_assigned,
-        },
-        passes: 0, // TODO: Track consecutive passes
-        ownership: None, // Ownership sent separately via broadcast_ownership
-        katago_available,
-        groups,
-    };
-
-    let json = serde_json::to_string(&msg).unwrap();
-
-    // Send to all connections
-    for conn in connections.values() {
-        let _ = conn.sender.send(json.clone());
-    }
-}
-
-/// Broadcast ownership data asynchronously (non-blocking)
-async fn broadcast_ownership(state: &AppState) {
-    // Check if KataGo is available
-    let katago_available = {
-        let katago_guard = state.katago.lock().await;
-        katago_guard.is_some()
-    };
-
-    if !katago_available {
-        return;
-    }
-
-    // Get current board state
-    let (board, board_size) = {
-        let game = state.game.lock().await;
-        (game.get_board(), game.get_board_size())
-    };
-
-    // Calculate ownership (this may take time)
-    let ownership = {
-        let mut katago_guard = state.katago.lock().await;
-        if let Some(katago_service) = katago_guard.as_mut() {
-            match katago_service.get_ownership(&board, board_size) {
-                Ok(ownership_data) => Some(ownership_data.ownership),
-                Err(e) => {
-                    eprintln!("Failed to get ownership data: {}", e);
-                    None
-                }
-            }
-        } else {
-            None
-        }
-    };
-
-    // If we got ownership data, broadcast it
-    if let Some(ownership_data) = ownership {
-        let msg = ServerMessage::OwnershipUpdate {
-            ownership: ownership_data,
-        };
-
-        let json = serde_json::to_string(&msg).unwrap();
-
-        let connections = state.connections.lock().await;
-        for conn in connections.values() {
-            let _ = conn.sender.send(json.clone());
-        }
-    }
-}
-
-/// Send color assignment to a specific connection
-async fn send_your_color(state: &AppState, conn_id: u64) {
-    let connections = state.connections.lock().await;
-
-    if let Some(conn) = connections.get(&conn_id) {
-        let msg = ServerMessage::YourColor {
-            color: conn.color,
-        };
-
-        let json = serde_json::to_string(&msg).unwrap();
-        let _ = conn.sender.send(json);
-    }
-}
-
-/// Send error message to a specific connection
-async fn send_error(state: &AppState, conn_id: u64, message: String) {
-    let connections = state.connections.lock().await;
-
-    if let Some(conn) = connections.get(&conn_id) {
-        let msg = ServerMessage::Error { message };
-        let json = serde_json::to_string(&msg).unwrap();
-        let _ = conn.sender.send(json);
-    }
+    println!("WebSocket connection closed");
 }
 
 /// Handle incoming message from client
-async fn handle_message(state: &Arc<AppState>, conn_id: u64, text: &str) {
+async fn handle_message(state: &Arc<AppState>, text: &str) -> ServerMessage {
     let client_msg: ClientMessage = match serde_json::from_str(text) {
         Ok(msg) => msg,
         Err(e) => {
-            send_error(state, conn_id, format!("Invalid message: {}", e)).await;
-            return;
+            return ServerMessage::Error {
+                message: format!("Invalid message: {}", e),
+            };
         }
     };
 
     match client_msg {
-        ClientMessage::ChooseColor { color } => {
-            handle_choose_color(state, conn_id, color).await;
+        ClientMessage::InitGame {
+            spirit,
+            board_size,
+            player_color,
+        } => handle_init_game(state, spirit, board_size, player_color).await,
+
+        ClientMessage::Move { coord } => {
+            // For now, we'll need to track session ID per connection
+            // This is a simplified version - production would track session per WebSocket
+            handle_move(state, coord).await
         }
-        ClientMessage::Move { x, y } => {
-            handle_move(state, conn_id, x, y).await;
-        }
+
         ClientMessage::Pass => {
-            handle_pass(state, conn_id).await;
+            ServerMessage::Error {
+                message: "Pass not yet implemented".to_string(),
+            }
         }
-        ClientMessage::Reset { board_size } => {
-            handle_reset(state, board_size).await;
+
+        ClientMessage::Resign => {
+            ServerMessage::Error {
+                message: "Resign not yet implemented".to_string(),
+            }
         }
     }
 }
 
-/// Handle color selection
-async fn handle_choose_color(state: &AppState, conn_id: u64, color: Color) {
-    let mut connections = state.connections.lock().await;
-
-    // Check if color is already taken
-    let color_taken = connections.values().any(|conn| conn.color == Some(color));
-
-    if color_taken {
-        drop(connections);
-        send_error(state, conn_id, "Color already taken".to_string()).await;
-        return;
-    }
-
-    // Assign color to the player
-    if let Some(conn) = connections.get_mut(&conn_id) {
-        conn.color = Some(color);
-    }
-
-    drop(connections);
-
-    // Broadcast updated state
-    broadcast_state(state).await;
-    send_your_color(state, conn_id).await;
-}
-
-/// Handle move attempt
-async fn handle_move(state: &Arc<AppState>, conn_id: u64, x: usize, y: usize) {
-    let connections = state.connections.lock().await;
-
-    // Get player's color
-    let color = match connections.get(&conn_id).and_then(|c| c.color) {
-        Some(c) => c,
+/// Handle InitGame message
+async fn handle_init_game(
+    state: &Arc<AppState>,
+    spirit_str: String,
+    board_size: usize,
+    player_color_str: String,
+) -> ServerMessage {
+    // Parse spirit
+    let spirit = match Spirit::from_string(&spirit_str) {
+        Some(s) => s,
         None => {
-            drop(connections);
-            send_error(state, conn_id, "You must choose a color first".to_string()).await;
-            return;
+            return ServerMessage::Error {
+                message: format!("Invalid spirit: {}", spirit_str),
+            };
         }
     };
 
-    drop(connections);
-
-    // Attempt move
-    let mut game = state.game.lock().await;
-    let result = game.place_stone(Position::new(x, y), color);
-
-    drop(game);
-
-    match result {
-        Ok(()) => {
-            broadcast_state(state).await;
-
-            // Spawn async task to calculate and broadcast ownership (non-blocking)
-            let state_clone = state.clone();
-            tokio::spawn(async move {
-                broadcast_ownership(&state_clone).await;
-            });
+    // Parse player color
+    let player_color = match player_color_str.to_lowercase().as_str() {
+        "black" => Color::Black,
+        "white" => Color::White,
+        _ => {
+            return ServerMessage::Error {
+                message: format!("Invalid color: {}", player_color_str),
+            };
         }
+    };
+
+    // Validate board size
+    if board_size != 9 && board_size != 13 && board_size != 19 {
+        return ServerMessage::Error {
+            message: "Board size must be 9, 13, or 19".to_string(),
+        };
+    }
+
+    // Spawn KataGo with spirit config
+    let config_path = spirit.config_file();
+    let mut katago_process = match KataGoProcess::spawn(config_path) {
+        Ok(process) => process,
         Err(e) => {
-            send_error(state, conn_id, e).await;
-        }
-    }
-}
-
-/// Handle pass
-async fn handle_pass(state: &Arc<AppState>, conn_id: u64) {
-    let connections = state.connections.lock().await;
-
-    // Get player's color
-    let color = match connections.get(&conn_id).and_then(|c| c.color) {
-        Some(c) => c,
-        None => {
-            drop(connections);
-            send_error(state, conn_id, "You must choose a color first".to_string()).await;
-            return;
+            return ServerMessage::Error {
+                message: format!("Failed to spawn KataGo: {}", e),
+            };
         }
     };
 
-    drop(connections);
-
-    let mut game = state.game.lock().await;
-
-    // Check if it's their turn
-    if game.get_turn() != color {
-        drop(game);
-        send_error(state, conn_id, "Not your turn".to_string()).await;
-        return;
+    // Initialize KataGo board
+    if let Err(e) = katago_process.set_boardsize(board_size) {
+        return ServerMessage::Error {
+            message: format!("Failed to set board size: {}", e),
+        };
     }
 
-    game.pass();
-    drop(game);
-
-    broadcast_state(state).await;
-
-    // Spawn async task to calculate and broadcast ownership (non-blocking)
-    let state_clone = state.clone();
-    tokio::spawn(async move {
-        broadcast_ownership(&state_clone).await;
-    });
-}
-
-/// Handle game reset
-async fn handle_reset(state: &AppState, board_size: usize) {
-    let mut game = state.game.lock().await;
-    game.reset_with_size(board_size);
-    drop(game);
-
-    // Clear color assignments
-    let mut connections = state.connections.lock().await;
-    for conn in connections.values_mut() {
-        conn.color = None;
+    if let Err(e) = katago_process.clear_board() {
+        return ServerMessage::Error {
+            message: format!("Failed to clear board: {}", e),
+        };
     }
-    drop(connections);
 
-    broadcast_state(state).await;
+    // Create game state
+    let game_state = Game::with_size(board_size);
+
+    // Generate session ID
+    let session_id = Uuid::new_v4().to_string();
+
+    // Create session data
+    let session_data = SessionData {
+        game_state,
+        katago_process,
+        spirit,
+        board_size,
+        move_number: 0,
+        player_color,
+    };
+
+    // Store session
+    let mut sessions = state.sessions.lock().await;
+    sessions.insert(session_id.clone(), session_data);
+    drop(sessions);
+
+    // If bot plays first (player is white), generate bot move
+    if player_color == Color::White {
+        // Bot is black and plays first
+        if let Err(e) = make_bot_move(state, &session_id).await {
+            return ServerMessage::Error {
+                message: format!("Bot failed to make opening move: {}", e),
+            };
+        }
+    }
+
+    ServerMessage::GameStarted {
+        session_id,
+        board_size,
+    }
 }
 
+/// Handle Move message
+/// Note: This simplified version assumes only one active session
+/// Production version would track session ID per WebSocket connection
+async fn handle_move(state: &Arc<AppState>, coord: String) -> ServerMessage {
+    // Find the first (only) active session - simplified for MVP
+    let session_id = {
+        let sessions = state.sessions.lock().await;
+        sessions.keys().next().cloned()
+    };
+
+    let session_id = match session_id {
+        Some(id) => id,
+        None => {
+            return ServerMessage::Error {
+                message: "No active game session".to_string(),
+            };
+        }
+    };
+
+    // Parse GTP coordinate
+    let position = {
+        let sessions = state.sessions.lock().await;
+        let session = match sessions.get(&session_id) {
+            Some(s) => s,
+            None => {
+                return ServerMessage::Error {
+                    message: "Session not found".to_string(),
+                };
+            }
+        };
+
+        match KataGoProcess::parse_gtp_move(&coord, session.board_size) {
+            Ok(pos) => pos,
+            Err(e) => {
+                return ServerMessage::Error {
+                    message: format!("Invalid coordinate: {}", e),
+                };
+            }
+        }
+    };
+
+    // Make human move
+    if let Err(e) = make_human_move(state, &session_id, position).await {
+        return ServerMessage::Error {
+            message: format!("Invalid move: {}", e),
+        };
+    }
+
+    // Make bot move
+    if let Err(e) = make_bot_move(state, &session_id).await {
+        return ServerMessage::Error {
+            message: format!("Bot failed to respond: {}", e),
+        };
+    }
+
+    // Return board update
+    get_board_update(state, &session_id).await
+}
+
+/// Make a human move
+async fn make_human_move(
+    state: &Arc<AppState>,
+    session_id: &SessionId,
+    position: Position,
+) -> Result<(), String> {
+    let mut sessions = state.sessions.lock().await;
+    let session = sessions.get_mut(session_id).ok_or("Session not found")?;
+
+    // Validate it's the player's turn
+    if session.game_state.get_turn() != session.player_color {
+        return Err("Not your turn".to_string());
+    }
+
+    // Apply move to game state
+    session.game_state.place_stone(position, session.player_color)?;
+
+    // Send move to KataGo
+    session
+        .katago_process
+        .play(session.player_color, position, session.board_size)?;
+
+    // Increment move number
+    session.move_number += 1;
+
+    Ok(())
+}
+
+/// Make a bot move
+async fn make_bot_move(
+    state: &Arc<AppState>,
+    session_id: &SessionId,
+) -> Result<(), String> {
+    let mut sessions = state.sessions.lock().await;
+    let session = sessions.get_mut(session_id).ok_or("Session not found")?;
+
+    let bot_color = session.player_color.opposite();
+
+    // Generate bot move with spirit-specific logic
+    let bot_position = match session.spirit {
+        Spirit::Jaguar => {
+            // Use dynamic visit scaling for Jaguar
+            let visits = jaguar::get_jaguar_visits(session.move_number);
+            session
+                .katago_process
+                .genmove_with_visits(bot_color, visits)?
+        }
+        _ => {
+            // Standard genmove for other spirits
+            session.katago_process.genmove(bot_color)?
+        }
+    };
+
+    // Apply bot move to game state
+    session.game_state.place_stone(bot_position, bot_color)?;
+
+    // Increment move number
+    session.move_number += 1;
+
+    Ok(())
+}
+
+/// Get current board update for a session
+async fn get_board_update(
+    state: &Arc<AppState>,
+    session_id: &SessionId,
+) -> ServerMessage {
+    let sessions = state.sessions.lock().await;
+    let session = match sessions.get(session_id) {
+        Some(s) => s,
+        None => {
+            return ServerMessage::Error {
+                message: "Session not found".to_string(),
+            };
+        }
+    };
+
+    // Convert board to string representation
+    let board_raw = session.game_state.get_board();
+    let board: Vec<Vec<Option<String>>> = board_raw
+        .iter()
+        .map(|row| {
+            row.iter()
+                .map(|cell| {
+                    cell.map(|color| match color {
+                        Color::Black => "black".to_string(),
+                        Color::White => "white".to_string(),
+                    })
+                })
+                .collect()
+        })
+        .collect();
+
+    ServerMessage::BoardUpdate {
+        board,
+        last_move: None, // TODO: Track last move
+        move_number: session.move_number,
+    }
+}
