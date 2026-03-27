@@ -159,4 +159,11 @@ roster.md (spirit personalities)
 
 ---
 
-**Ready to implement!** Start with Phase 1, verify each step compiles, then proceed sequentially through the phases.
+## Implementation Status
+
+**✅ Phase 1: Foundation** - Game engine, KataGo base, server copied from ../go
+**✅ Phase 2: Spirit System** - 9 configs, Spirit enum, Jaguar/Crow middleware
+**✅ Phase 3: Frontend** - Complete UI with all 9 palettes
+**✅ Phase 4: Integration** - WebSocket handlers, session management, GTP orchestration
+
+**Core implementation complete.** See README.md and SETUP.md for setup/testing.
