@@ -7,6 +7,7 @@ use std::{net::SocketAddr, sync::Arc};
 
 mod game;
 mod katago;
+mod spirits;
 mod state;
 mod ws;
 

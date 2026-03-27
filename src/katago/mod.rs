@@ -7,6 +7,9 @@ use std::sync::{Arc, Mutex};
 
 use crate::game::{Color, Position};
 
+pub mod jaguar;
+pub mod crow;
+
 /// Configuration for KataGo service
 #[derive(Debug, Clone)]
 pub struct KataGoConfig {
@@ -342,7 +345,7 @@ mod tests {
     #[test]
     fn test_config_default() {
         let config = KataGoConfig::default();
-        assert_eq!(config.max_visits, 100);
+        assert_eq!(config.max_visits, 50);
         assert!(config.enable_ownership);
     }
 
