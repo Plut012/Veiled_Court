@@ -8,23 +8,31 @@
   <link rel="stylesheet" href="css/board.css">
 </head>
 <body class="theme-dragon">
+  <div id="loading-overlay">
+    <div id="loading-spirit"></div>
+  </div>
+
   <div id="game-screen">
+    <div id="turn-line-top" class="turn-line"></div>
+
     <div id="board-container">
       <canvas id="board"></canvas>
     </div>
+
+    <div id="turn-line-bottom" class="turn-line"></div>
+
+    <div id="submit-bar" style="display:none"></div>
 
     <div id="controls">
       <button id="pass-btn">Pass</button>
       <button id="resign-btn">Resign</button>
     </div>
 
-    <div id="info">
-      <span id="move-count">Move 0</span>
-      <span id="current-turn">Black to play</span>
+    <div id="info" style="display:none">
+      <span id="move-count"></span>
+      <span id="current-turn"></span>
       <span id="last-move"></span>
     </div>
-
-    <img id="spirit-portrait" src="" alt="Spirit Portrait">
   </div>
 
   <script src="js/board.js"></script>

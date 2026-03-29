@@ -25,6 +25,12 @@ class GameClient {
     this.ws.onopen = () => {
       console.log('Connected to game server');
       this.reconnectAttempts = 0;
+
+      // If we have a session, resume it instead of waiting for initGame
+      const savedSession = sessionStorage.getItem('sessionId');
+      if (savedSession) {
+        this.send({ type: 'ResumeGame', session_id: savedSession });
+      }
     };
 
     this.ws.onmessage = (event) => {
@@ -119,6 +125,10 @@ class GameClient {
         this.handleBoardUpdate(msg);
         break;
 
+      case 'BotThinking':
+        this.handleBotThinking();
+        break;
+
       case 'KoActive':
         this.handleKoActive(msg);
         break;
@@ -141,12 +151,16 @@ class GameClient {
     this.sessionId = msg.session_id;
     this.boardSize = msg.board_size;
 
-    // Navigate to game screen
-    window.location.href = `/game.html?session=${msg.session_id}`;
+    // Persist session ID so we can resume after sleep/reload
+    sessionStorage.setItem('sessionId', msg.session_id);
   }
 
   handleBoardUpdate(msg) {
     console.log('Board update:', msg);
+
+    // Clear thinking state
+    document.body.classList.remove('bot-thinking');
+    this.setTurnIndicator('player');
 
     // Update board state
     if (window.boardRenderer) {
@@ -176,6 +190,19 @@ class GameClient {
     }
   }
 
+  handleBotThinking() {
+    console.log('Bot is thinking...');
+    document.body.classList.add('bot-thinking');
+    this.setTurnIndicator('bot');
+  }
+
+  setTurnIndicator(who) {
+    const screen = document.getElementById('game-screen');
+    if (!screen) return;
+    screen.classList.remove('turn-bot', 'turn-player');
+    screen.classList.add(who === 'bot' ? 'turn-bot' : 'turn-player');
+  }
+
   handleKoActive(msg) {
     console.log('Ko active:', msg);
 
@@ -194,6 +221,9 @@ class GameClient {
   handleGameOver(msg) {
     console.log('Game over:', msg);
 
+    // Clear saved session — game is done
+    sessionStorage.removeItem('sessionId');
+
     // Display winner
     const infoDiv = document.getElementById('info');
     const resultText = document.createElement('div');
@@ -209,15 +239,25 @@ class GameClient {
 
   handleError(msg) {
     console.error('Server error:', msg);
+
+    // Session gone — return to spirit selection
+    if (msg.message === 'Session expired') {
+      sessionStorage.removeItem('sessionId');
+      window.location.href = '/';
+      return;
+    }
+
     this.showError(msg.message || 'An error occurred');
   }
 
   parseCoord(coordStr) {
     // Parse GTP coordinate like "Q16" into {x, y}
+    // GTP skips 'I' so: A=0, B=1, ..., H=7, J=8, K=9, ...
     if (!coordStr || coordStr.length < 2) return null;
 
-    const col = coordStr.charCodeAt(0) - 65; // A=0, B=1, etc.
-    const row = parseInt(coordStr.substring(1)) - 1;
+    let col = coordStr.charCodeAt(0) - 65; // A=0, B=1, etc.
+    if (col > 7) col--; // Skip 'I': J becomes 8 instead of 9
+    const row = this.boardSize - parseInt(coordStr.substring(1)); // GTP rows count from bottom
 
     if (col >= 0 && col < this.boardSize && row >= 0 && row < this.boardSize) {
       return { x: col, y: row };
@@ -227,9 +267,12 @@ class GameClient {
 
   coordToGTP(x, y) {
     // Convert {x, y} to GTP coordinate like "Q16"
-    const col = String.fromCharCode(65 + x); // 0=A, 1=B, etc.
-    const row = y + 1;
-    return `${col}${row}`;
+    // GTP skips 'I' so: 0=A, 1=B, ..., 7=H, 8=J, 9=K, ...
+    let col = x;
+    if (col >= 8) col++; // Skip 'I'
+    const colChar = String.fromCharCode(65 + col);
+    const row = this.boardSize - y; // GTP rows count from bottom
+    return `${colChar}${row}`;
   }
 
   showError(message) {

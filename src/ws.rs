@@ -14,12 +14,15 @@ use crate::state::{AppState, SessionData, SessionId};
 
 /// Messages sent from client to server
 #[derive(Debug, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(tag = "type", rename_all = "PascalCase")]
 enum ClientMessage {
     InitGame {
         spirit: String,
         board_size: usize,
         player_color: String,
+    },
+    ResumeGame {
+        session_id: String,
     },
     Move {
         coord: String, // e.g. "D4"
@@ -30,17 +33,21 @@ enum ClientMessage {
 
 /// Messages sent from server to client
 #[derive(Debug, Serialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(tag = "type", rename_all = "PascalCase")]
 enum ServerMessage {
     GameStarted {
         session_id: String,
         board_size: usize,
+        board: Option<Vec<Vec<Option<String>>>>,
+        last_move: Option<String>,
+        move_number: usize,
     },
     BoardUpdate {
         board: Vec<Vec<Option<String>>>, // "black", "white", or null
         last_move: Option<String>,
         move_number: usize,
     },
+    BotThinking,
     KoActive {
         threats: Vec<String>, // Crow only - placeholder for now
     },
@@ -66,12 +73,14 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
     // Handle incoming messages
     while let Some(Ok(msg)) = receiver.next().await {
         if let Message::Text(text) = msg {
-            let response = handle_message(&state, &text).await;
+            let responses = handle_message(&state, &text, &mut sender).await;
 
-            // Send response
-            let response_json = serde_json::to_string(&response).unwrap();
-            if sender.send(Message::Text(response_json)).await.is_err() {
-                break;
+            // Send all responses
+            for response in responses {
+                let response_json = serde_json::to_string(&response).unwrap();
+                if sender.send(Message::Text(response_json)).await.is_err() {
+                    return;
+                }
             }
         }
     }
@@ -80,13 +89,17 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
 }
 
 /// Handle incoming message from client
-async fn handle_message(state: &Arc<AppState>, text: &str) -> ServerMessage {
+async fn handle_message(
+    state: &Arc<AppState>,
+    text: &str,
+    sender: &mut futures::stream::SplitSink<WebSocket, Message>,
+) -> Vec<ServerMessage> {
     let client_msg: ClientMessage = match serde_json::from_str(text) {
         Ok(msg) => msg,
         Err(e) => {
-            return ServerMessage::Error {
+            return vec![ServerMessage::Error {
                 message: format!("Invalid message: {}", e),
-            };
+            }];
         }
     };
 
@@ -95,24 +108,24 @@ async fn handle_message(state: &Arc<AppState>, text: &str) -> ServerMessage {
             spirit,
             board_size,
             player_color,
-        } => handle_init_game(state, spirit, board_size, player_color).await,
+        } => vec![handle_init_game(state, spirit, board_size, player_color).await],
+
+        ClientMessage::ResumeGame { session_id } => {
+            vec![handle_resume_game(state, session_id).await]
+        }
 
         ClientMessage::Move { coord } => {
-            // For now, we'll need to track session ID per connection
-            // This is a simplified version - production would track session per WebSocket
-            handle_move(state, coord).await
+            handle_move(state, coord, sender).await
         }
 
         ClientMessage::Pass => {
-            ServerMessage::Error {
+            vec![ServerMessage::Error {
                 message: "Pass not yet implemented".to_string(),
-            }
+            }]
         }
 
         ClientMessage::Resign => {
-            ServerMessage::Error {
-                message: "Resign not yet implemented".to_string(),
-            }
+            handle_resign(state).await
         }
     }
 }
@@ -190,10 +203,12 @@ async fn handle_init_game(
         board_size,
         move_number: 0,
         player_color,
+        last_move: None,
     };
 
-    // Store session
+    // Enforce single game — tear down any existing sessions
     let mut sessions = state.sessions.lock().await;
+    sessions.clear();
     sessions.insert(session_id.clone(), session_data);
     drop(sessions);
 
@@ -207,16 +222,80 @@ async fn handle_init_game(
         }
     }
 
+    // Include initial board state (with bot's opening move if applicable)
+    let (board, last_move, move_number) = {
+        let sessions = state.sessions.lock().await;
+        if let Some(session) = sessions.get(&session_id) {
+            let board = board_to_strings(&session.game_state);
+            (Some(board), None, session.move_number)
+        } else {
+            (None, None, 0)
+        }
+    };
+
     ServerMessage::GameStarted {
         session_id,
         board_size,
+        board,
+        last_move,
+        move_number,
+    }
+}
+
+/// Handle Resign — player forfeits, session is cleaned up
+async fn handle_resign(state: &Arc<AppState>) -> Vec<ServerMessage> {
+    let mut sessions = state.sessions.lock().await;
+    let session_id = match sessions.keys().next().cloned() {
+        Some(id) => id,
+        None => {
+            return vec![ServerMessage::Error {
+                message: "No active game session".to_string(),
+            }];
+        }
+    };
+
+    let session = sessions.remove(&session_id);
+    drop(sessions);
+
+    let winner = match session {
+        Some(s) => {
+            let bot_color = s.player_color.opposite();
+            match bot_color {
+                Color::Black => "Black".to_string(),
+                Color::White => "White".to_string(),
+            }
+        }
+        None => "Unknown".to_string(),
+    };
+
+    vec![ServerMessage::GameOver { winner }]
+}
+
+/// Handle ResumeGame message — client reconnecting to an existing session
+async fn handle_resume_game(
+    state: &Arc<AppState>,
+    session_id: String,
+) -> ServerMessage {
+    let sessions = state.sessions.lock().await;
+    match sessions.get(&session_id) {
+        Some(session) => ServerMessage::BoardUpdate {
+            board: board_to_strings(&session.game_state),
+            last_move: session.last_move.clone(),
+            move_number: session.move_number,
+        },
+        None => ServerMessage::Error {
+            message: "Session expired".to_string(),
+        },
     }
 }
 
 /// Handle Move message
-/// Note: This simplified version assumes only one active session
-/// Production version would track session ID per WebSocket connection
-async fn handle_move(state: &Arc<AppState>, coord: String) -> ServerMessage {
+/// Sends board update after human move, then thinking indicator, then bot response
+async fn handle_move(
+    state: &Arc<AppState>,
+    coord: String,
+    sender: &mut futures::stream::SplitSink<WebSocket, Message>,
+) -> Vec<ServerMessage> {
     // Find the first (only) active session - simplified for MVP
     let session_id = {
         let sessions = state.sessions.lock().await;
@@ -226,9 +305,9 @@ async fn handle_move(state: &Arc<AppState>, coord: String) -> ServerMessage {
     let session_id = match session_id {
         Some(id) => id,
         None => {
-            return ServerMessage::Error {
+            return vec![ServerMessage::Error {
                 message: "No active game session".to_string(),
-            };
+            }];
         }
     };
 
@@ -238,38 +317,47 @@ async fn handle_move(state: &Arc<AppState>, coord: String) -> ServerMessage {
         let session = match sessions.get(&session_id) {
             Some(s) => s,
             None => {
-                return ServerMessage::Error {
+                return vec![ServerMessage::Error {
                     message: "Session not found".to_string(),
-                };
+                }];
             }
         };
 
         match KataGoProcess::parse_gtp_move(&coord, session.board_size) {
             Ok(pos) => pos,
             Err(e) => {
-                return ServerMessage::Error {
+                return vec![ServerMessage::Error {
                     message: format!("Invalid coordinate: {}", e),
-                };
+                }];
             }
         }
     };
 
     // Make human move
     if let Err(e) = make_human_move(state, &session_id, position).await {
-        return ServerMessage::Error {
+        return vec![ServerMessage::Error {
             message: format!("Invalid move: {}", e),
-        };
+        }];
     }
 
-    // Make bot move
+    // Send board update with human move immediately
+    let human_update = get_board_update(state, &session_id).await;
+    let human_json = serde_json::to_string(&human_update).unwrap();
+    let _ = sender.send(Message::Text(human_json)).await;
+
+    // Send thinking indicator
+    let thinking = serde_json::to_string(&ServerMessage::BotThinking).unwrap();
+    let _ = sender.send(Message::Text(thinking)).await;
+
+    // Make bot move (this blocks while KataGo thinks)
     if let Err(e) = make_bot_move(state, &session_id).await {
-        return ServerMessage::Error {
+        return vec![ServerMessage::Error {
             message: format!("Bot failed to respond: {}", e),
-        };
+        }];
     }
 
-    // Return board update
-    get_board_update(state, &session_id).await
+    // Return final board update with bot move
+    vec![get_board_update(state, &session_id).await]
 }
 
 /// Make a human move
@@ -290,11 +378,13 @@ async fn make_human_move(
     session.game_state.place_stone(position, session.player_color)?;
 
     // Send move to KataGo
+    let gtp_coord = KataGoProcess::position_to_gtp(position, session.board_size);
     session
         .katago_process
         .play(session.player_color, position, session.board_size)?;
 
-    // Increment move number
+    // Track last move and increment move number
+    session.last_move = Some(gtp_coord);
     session.move_number += 1;
 
     Ok(())
@@ -311,27 +401,46 @@ async fn make_bot_move(
     let bot_color = session.player_color.opposite();
 
     // Generate bot move with spirit-specific logic
+    let board_size = session.board_size;
     let bot_position = match session.spirit {
         Spirit::Jaguar => {
             // Use dynamic visit scaling for Jaguar
             let visits = jaguar::get_jaguar_visits(session.move_number);
             session
                 .katago_process
-                .genmove_with_visits(bot_color, visits)?
+                .genmove_with_visits(bot_color, visits, board_size)?
         }
         _ => {
             // Standard genmove for other spirits
-            session.katago_process.genmove(bot_color)?
+            session.katago_process.genmove(bot_color, board_size)?
         }
     };
 
     // Apply bot move to game state
     session.game_state.place_stone(bot_position, bot_color)?;
 
-    // Increment move number
+    // Track last move and increment move number
+    session.last_move = Some(KataGoProcess::position_to_gtp(bot_position, board_size));
     session.move_number += 1;
 
     Ok(())
+}
+
+/// Convert game board to string representation
+fn board_to_strings(game: &Game) -> Vec<Vec<Option<String>>> {
+    game.get_board()
+        .iter()
+        .map(|row| {
+            row.iter()
+                .map(|cell| {
+                    cell.map(|color| match color {
+                        Color::Black => "black".to_string(),
+                        Color::White => "white".to_string(),
+                    })
+                })
+                .collect()
+        })
+        .collect()
 }
 
 /// Get current board update for a session
@@ -349,25 +458,9 @@ async fn get_board_update(
         }
     };
 
-    // Convert board to string representation
-    let board_raw = session.game_state.get_board();
-    let board: Vec<Vec<Option<String>>> = board_raw
-        .iter()
-        .map(|row| {
-            row.iter()
-                .map(|cell| {
-                    cell.map(|color| match color {
-                        Color::Black => "black".to_string(),
-                        Color::White => "white".to_string(),
-                    })
-                })
-                .collect()
-        })
-        .collect();
-
     ServerMessage::BoardUpdate {
-        board,
-        last_move: None, // TODO: Track last move
+        board: board_to_strings(&session.game_state),
+        last_move: session.last_move.clone(),
         move_number: session.move_number,
     }
 }

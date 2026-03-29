@@ -28,7 +28,7 @@ echo ""
 # Standard net - CHECK THIS URL AT: https://katagotraining.org/
 # Look for "Network File" link at top of page
 # Example URL (verify before using):
-STANDARD_NET_URL="https://media.katagotraining.org/uploaded/networks/models/kata1/kata1-b28c512nbt-s8965856768-d4917590699.bin.gz"
+STANDARD_NET_URL="https://media.katagotraining.org/uploaded/networks/models/kata1/kata1-zhizi-b28c512nbt-muonfd2.bin.gz"
 
 # Try downloading with multiple methods
 if command -v curl &> /dev/null; then

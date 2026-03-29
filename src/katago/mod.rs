@@ -17,8 +17,12 @@ pub struct KataGoProcess {
 impl KataGoProcess {
     /// Spawn a new KataGo process in GTP mode with the specified config file
     pub fn spawn(config_path: &str) -> Result<Self, String> {
-        let binary_path = PathBuf::from("assets/katago/katago");
-        let model_path = PathBuf::from("assets/katago/model.bin.gz");
+        let binary_path = PathBuf::from(
+            std::env::var("KATAGO_BINARY").unwrap_or_else(|_| "assets/katago/katago".to_string()),
+        );
+        let model_path = PathBuf::from(
+            std::env::var("KATAGO_MODEL").unwrap_or_else(|_| "assets/katago/model.bin.gz".to_string()),
+        );
 
         // Verify binary exists
         if !binary_path.exists() {
@@ -45,12 +49,22 @@ impl KataGoProcess {
             ));
         }
 
-        let mut child = Command::new(&binary_path)
-            .arg("gtp")
+        let human_model_path = std::env::var("KATAGO_HUMAN_MODEL").ok().map(PathBuf::from);
+
+        let mut cmd = Command::new(&binary_path);
+        cmd.arg("gtp")
             .arg("-model")
             .arg(&model_path)
             .arg("-config")
-            .arg(&config_path)
+            .arg(&config_path);
+
+        if let Some(ref hm) = human_model_path {
+            if hm.exists() {
+                cmd.arg("-human-model").arg(hm);
+            }
+        }
+
+        let mut child = cmd
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
@@ -145,7 +159,7 @@ impl KataGoProcess {
     }
 
     /// Generate a move for the specified color
-    pub fn genmove(&mut self, color: Color) -> Result<Position, String> {
+    pub fn genmove(&mut self, color: Color, board_size: usize) -> Result<Position, String> {
         let color_str = match color {
             Color::Black => "black",
             Color::White => "white",
@@ -156,22 +170,20 @@ impl KataGoProcess {
             return Err("KataGo passed".to_string());
         }
 
-        // Parse the GTP coordinate (assume 19x19 for now, will be passed from session)
-        // This is a simplification - in practice we'd track board size per session
-        Self::parse_gtp_move(&response, 19)
+        Self::parse_gtp_move(&response, board_size)
     }
 
     /// Generate a move for the specified color with a custom visit count
-    pub fn genmove_with_visits(&mut self, color: Color, visits: u32) -> Result<Position, String> {
+    pub fn genmove_with_visits(&mut self, color: Color, visits: u32, board_size: usize) -> Result<Position, String> {
         // First, set the visit count using kata-set-param
         self.send_command(&format!("kata-set-param maxVisits {}", visits))?;
 
         // Then generate the move
-        self.genmove(color)
+        self.genmove(color, board_size)
     }
 
     /// Convert position to GTP coordinate (e.g., (3, 3) -> "D16" for 19x19 board)
-    fn position_to_gtp(pos: Position, board_size: usize) -> String {
+    pub fn position_to_gtp(pos: Position, board_size: usize) -> String {
         // GTP uses letters A-T (skipping I) for columns, numbers 1-19 for rows
         // x=0 -> A, x=1 -> B, ..., x=7 -> H, x=8 -> J (skip I), ...
         // y=0 -> bottom row (19 for 19x19), y=18 -> top row (1)
@@ -260,7 +272,7 @@ mod tests {
         process.play(Color::Black, Position::new(3, 3), 19).expect("Failed to play move");
 
         // Test generating a move
-        let bot_move = process.genmove(Color::White);
+        let bot_move = process.genmove(Color::White, 19);
         assert!(bot_move.is_ok(), "Failed to generate move: {:?}", bot_move.err());
     }
 }

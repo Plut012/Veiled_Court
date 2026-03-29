@@ -1,0 +1,171 @@
+#!/bin/bash
+# ──────────────────────────────────────
+#  Veiled Court — run
+# ──────────────────────────────────────
+
+set -euo pipefail
+
+cd "$(dirname "$0")"
+
+# ── colors ──
+
+R='\033[0m'       # reset
+DIM='\033[2m'
+BOLD='\033[1m'
+WHITE='\033[97m'
+GREEN='\033[32m'
+YELLOW='\033[33m'
+RED='\033[31m'
+CYAN='\033[36m'
+
+# ── helpers ──
+
+log()  { echo -e "  ${DIM}$(date +%H:%M:%S)${R}  $1"; }
+ok()   { echo -e "  ${DIM}$(date +%H:%M:%S)${R}  ${GREEN}+${R} $1"; }
+warn() { echo -e "  ${DIM}$(date +%H:%M:%S)${R}  ${YELLOW}~${R} $1"; }
+err()  { echo -e "  ${DIM}$(date +%H:%M:%S)${R}  ${RED}x${R} $1"; }
+die()  { err "$1"; exit 1; }
+
+header() {
+    echo ""
+    echo -e "  ${DIM}───${R} ${WHITE}${BOLD}$1${R}"
+    echo ""
+}
+
+# ── mode ──
+
+MODE="${1:-prod}"
+case "$MODE" in
+    dev|--dev|-d)   MODE="dev" ;;
+    prod|--prod|-p) MODE="prod" ;;
+    *)              echo "usage: ./run [dev|prod]"; exit 1 ;;
+esac
+
+echo ""
+echo -e "  ${WHITE}${BOLD}veiled court${R}  ${DIM}·${R}  ${MODE}"
+echo ""
+
+# ── gpu ──
+
+header "gpu"
+
+if command -v nvidia-smi &>/dev/null; then
+    GPU_NAME=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1)
+    GPU_MEM=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader 2>/dev/null | head -1)
+    ok "${GPU_NAME}  ${DIM}${GPU_MEM}${R}"
+else
+    warn "nvidia-smi not found — katago will be slow on cpu"
+fi
+
+# ── nets ──
+
+header "nets"
+
+NETS_DIR="./nets"
+STANDARD_NET="${NETS_DIR}/kata1-b28c512nbt.bin.gz"
+HUMAN_NET="${NETS_DIR}/b18c384nbt-humanv0.bin.gz"
+
+if [ -f "$STANDARD_NET" ]; then
+    SIZE=$(du -h "$STANDARD_NET" | cut -f1)
+    ok "standard    ${DIM}kata1-b28c512nbt  ${SIZE}${R}"
+else
+    die "standard net missing — run ${BOLD}./scripts/download_nets.sh${R}"
+fi
+
+if [ -f "$HUMAN_NET" ]; then
+    SIZE=$(du -h "$HUMAN_NET" | cut -f1)
+    ok "human       ${DIM}b18c384nbt-humanv0  ${SIZE}${R}"
+else
+    die "human net missing — run ${BOLD}./scripts/download_nets.sh${R}"
+fi
+
+# ── configs ──
+
+header "configs"
+
+if [ "$MODE" = "dev" ]; then
+    CONFIG_DIR="./configs-dev"
+else
+    CONFIG_DIR="./configs"
+fi
+
+if [ ! -d "$CONFIG_DIR" ]; then
+    die "config dir not found: ${CONFIG_DIR}"
+fi
+
+SPIRIT_COUNT=$(ls "$CONFIG_DIR"/*.cfg 2>/dev/null | wc -l)
+SPIRITS=$(ls "$CONFIG_DIR"/*.cfg 2>/dev/null | xargs -I{} basename {} .cfg | tr '\n' '  ')
+ok "${SPIRIT_COUNT} spirits  ${DIM}${SPIRITS}${R}"
+
+# ── build / run ──
+
+header "server"
+
+export ANIMAL_GO_CONFIG_DIR="$(pwd)/${CONFIG_DIR}"
+export KATAGO_BINARY="${KATAGO_BINARY:-assets/katago/katago}"
+export KATAGO_MODEL="${KATAGO_MODEL:-${STANDARD_NET}}"
+export KATAGO_HUMAN_MODEL="${KATAGO_HUMAN_MODEL:-${HUMAN_NET}}"
+export RUST_LOG="${RUST_LOG:-info}"
+
+if [ "$MODE" = "prod" ]; then
+
+    # ── docker ──
+    if ! command -v docker &>/dev/null; then
+        die "docker not found"
+    fi
+
+    log "building container..."
+    docker compose build --quiet 2>&1 | while read -r line; do
+        log "${DIM}${line}${R}"
+    done
+    ok "image built"
+
+    # stop old container if running
+    if docker ps -q -f name=animal-go-prod &>/dev/null; then
+        docker compose down --timeout 5 2>/dev/null || true
+    fi
+
+    log "starting container..."
+    docker compose up -d 2>/dev/null
+    ok "container running"
+
+    echo ""
+    echo -e "  ${DIM}───${R} ${WHITE}${BOLD}ready${R}"
+    echo ""
+    log "http://localhost:3000"
+    echo ""
+    log "${DIM}logs${R}     docker compose logs -f"
+    log "${DIM}stop${R}     docker compose down"
+    log "${DIM}gpu${R}      nvidia-smi"
+    echo ""
+
+    # tail logs with clean formatting
+    docker compose logs -f 2>&1 | while IFS= read -r line; do
+        # strip docker compose prefix (e.g. "animal-go-prod  | ")
+        clean=$(echo "$line" | sed 's/^[a-zA-Z0-9_-]*\s*| //')
+        log "${DIM}${clean}${R}"
+    done
+
+else
+
+    # ── cargo dev ──
+    if ! command -v cargo &>/dev/null; then
+        die "cargo not found — install rust: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh"
+    fi
+
+    log "compiling..."
+    cargo build 2>&1 | while IFS= read -r line; do
+        log "${DIM}${line}${R}"
+    done
+    ok "compiled"
+
+    echo ""
+    echo -e "  ${DIM}───${R} ${WHITE}${BOLD}ready${R}"
+    echo ""
+    log "http://localhost:3000"
+    log "${DIM}ctrl+c to stop${R}"
+    echo ""
+
+    cargo run 2>&1
+
+fi

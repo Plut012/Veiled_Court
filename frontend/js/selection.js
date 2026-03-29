@@ -98,54 +98,16 @@ function startGame() {
   const boardSize = parseInt(document.getElementById('board-size').value);
   const playerColor = document.getElementById('player-color').value;
 
-  console.log('Starting game:', {
-    spirit: selectedSpirit,
-    boardSize: boardSize,
-    playerColor: playerColor
-  });
-
-  // Show loading state
-  document.getElementById('start-game-btn').textContent = 'Connecting...';
-  document.getElementById('start-game-btn').disabled = true;
-
-  // Store selections in session storage for game screen
+  // Store selections and navigate immediately — game.html handles the connection
   sessionStorage.setItem('selectedSpirit', selectedSpirit);
   sessionStorage.setItem('selectedTheme', selectedTheme);
+  sessionStorage.setItem('playerColor', playerColor);
+  sessionStorage.setItem('boardSize', boardSize);
 
-  // Create WebSocket client instance
-  const client = new GameClient();
-  window.gameClient = client;
-
-  // Connect to server
-  client.connect();
-
-  // Wait for connection to open, then init game
-  const checkConnection = setInterval(() => {
-    if (client.ws && client.ws.readyState === WebSocket.OPEN) {
-      clearInterval(checkConnection);
-
-      // Initialize game
-      client.initGame(selectedSpirit, boardSize, playerColor);
-    }
-  }, 100);
-
-  // Timeout after 10 seconds
-  setTimeout(() => {
-    if (!client.sessionId) {
-      clearInterval(checkConnection);
-      alert('Connection timeout. Please try again.');
-      document.getElementById('start-game-btn').textContent = `Play as ${selectedSpirit}`;
-      document.getElementById('start-game-btn').disabled = false;
-    }
-  }, 10000);
+  window.location.href = '/game.html';
 }
 
-// Load WebSocket client script
-const script = document.createElement('script');
-script.src = 'js/websocket.js';
-document.head.appendChild(script);
-
-// Load theme script
+// Load theme script for hover previews
 const themeScript = document.createElement('script');
 themeScript.src = 'js/theme.js';
 document.head.appendChild(themeScript);

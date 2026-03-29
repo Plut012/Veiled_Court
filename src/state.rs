@@ -17,6 +17,7 @@ pub struct SessionData {
     pub board_size: usize,
     pub move_number: usize,
     pub player_color: Color, // Human's color
+    pub last_move: Option<String>, // GTP coordinate of most recent move
 }
 
 /// Shared application state

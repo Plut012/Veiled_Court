@@ -64,7 +64,7 @@ else
       tee /etc/apt/sources.list.d/docker.list > /dev/null
 
     apt-get update
-    apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker compose-plugin
 
     # Add user to docker group
     usermod -aG docker "$ACTUAL_USER"
@@ -81,12 +81,11 @@ else
     echo "Installing NVIDIA Container Toolkit..."
 
     # Modern method for adding NVIDIA repository (works with Ubuntu 20.04+)
-    distribution=$(. /etc/os-release;echo $ID$VERSION_ID) \
-        && curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | \
-           gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg \
-        && curl -s -L https://nvidia.github.io/libnvidia-container/$distribution/libnvidia-container.list | \
-           sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
-           tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+    curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | \
+        gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+    curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
+        sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
+        tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
 
     apt-get update
     apt-get install -y nvidia-container-toolkit
@@ -143,7 +142,7 @@ echo ""
 cd "$PROJECT_DIR"
 
 # Run as the actual user
-su - "$ACTUAL_USER" -c "cd '$PROJECT_DIR' && docker-compose up --build -d"
+su - "$ACTUAL_USER" -c "cd '$PROJECT_DIR' && docker compose up --build -d"
 
 echo ""
 echo "✓ Server started"
@@ -172,7 +171,7 @@ if [ "$SERVER_READY" = true ]; then
     echo "✓ Server is responding"
 else
     echo "⚠ Server not responding yet (may still be starting up)"
-    echo "Check logs with: docker-compose logs -f"
+    echo "Check logs with: docker compose logs -f"
 fi
 echo ""
 
@@ -182,7 +181,7 @@ echo "✓ Deployment Complete!"
 echo "========================================"
 echo ""
 echo "Server Status:"
-docker-compose ps
+docker compose ps
 echo ""
 echo "Access the game at:"
 echo "  Local: http://localhost:3000"
@@ -192,10 +191,10 @@ if [ -n "$IP_ADDR" ]; then
 fi
 echo ""
 echo "Management Commands:"
-echo "  View logs:    docker-compose logs -f"
-echo "  Stop server:  docker-compose down"
-echo "  Restart:      docker-compose restart"
-echo "  Status:       docker-compose ps"
+echo "  View logs:    docker compose logs -f"
+echo "  Stop server:  docker compose down"
+echo "  Restart:      docker compose restart"
+echo "  Status:       docker compose ps"
 echo "  GPU usage:    nvidia-smi"
 echo ""
 echo "The server will auto-start on reboot."

@@ -143,8 +143,10 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 20px;
-  min-height: 100vh;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  padding: 10px;
 }
 
 #board-container {
@@ -154,29 +156,68 @@ body {
   justify-content: center;
   width: 100%;
   max-width: 800px;
-  margin: 0 auto 20px;
+  min-height: 0;
 }
 
 #board {
   max-width: 100%;
-  max-height: 80vh;
+  max-height: 100%;
   cursor: pointer;
+}
+
+/* Turn indicator line */
+.turn-line {
+  width: 50%;
+  height: 2px;
+  margin: 6px auto;
+  background: var(--accent);
+  opacity: 0;
+  transition: opacity 0.6s ease;
+  flex-shrink: 0;
+}
+
+.turn-bot #turn-line-top,
+#game-screen.turn-bot > #turn-line-top {
+  opacity: 1;
+}
+
+.turn-player #turn-line-bottom,
+#game-screen.turn-player > #turn-line-bottom {
+  opacity: 1;
+}
+
+/* Submit bar */
+#submit-bar {
+  width: 100%;
+  max-width: 300px;
+  height: 44px;
+  background: var(--accent);
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  margin: 8px auto;
+  flex-shrink: 0;
+  transition: opacity 0.2s ease;
+}
+
+#submit-bar:active {
+  opacity: 0.7;
 }
 
 /* Controls */
 #controls {
   display: flex;
-  gap: 15px;
-  margin-bottom: 15px;
+  gap: 10px;
+  flex-shrink: 0;
 }
 
 #controls button {
-  padding: 12px 24px;
+  padding: 8px 20px;
   background: transparent;
   color: var(--board-secondary);
-  border: 2px solid var(--board-secondary);
+  border: 1px solid var(--board-secondary);
   border-radius: 6px;
-  font-size: 16px;
+  font-size: 14px;
   cursor: pointer;
   transition: all 0.3s ease;
 }
@@ -204,31 +245,71 @@ body {
   border: 3px solid var(--accent);
 }
 
-/* Loading State */
-.loading {
+/* Loading Overlay — zen breathing dot */
+#loading-overlay {
+  position: fixed;
+  inset: 0;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: 100vh;
-  color: var(--accent);
-  font-size: 18px;
+  background: var(--board-primary);
+  z-index: 100;
+  transition: opacity 0.6s ease;
 }
 
-.loading::after {
-  content: '';
-  display: block;
-  width: 40px;
-  height: 40px;
-  margin-top: 20px;
-  border: 4px solid var(--board-secondary);
-  border-top-color: var(--accent);
+#loading-overlay.done {
+  opacity: 0;
+  pointer-events: none;
+}
+
+#loading-spirit {
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
-  animation: spin 1s linear infinite;
+  background: var(--accent);
+  animation: breathe 3s ease-in-out infinite;
 }
 
-@keyframes spin {
-  to { transform: rotate(360deg); }
+@keyframes breathe {
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.8); }
+}
+
+/* Bot Thinking — gentle breathing glow */
+.bot-thinking #board {
+  animation: thinking-breathe 3s ease-in-out infinite;
+}
+
+.bot-thinking #current-turn {
+  animation: thinking-text 3s ease-in-out infinite;
+}
+
+.bot-thinking #current-turn::after {
+  content: ' · · ·';
+  animation: thinking-dots 1.5s steps(4, end) infinite;
+}
+
+@keyframes thinking-breathe {
+  0%, 100% {
+    filter: brightness(1);
+    box-shadow: 0 0 0px transparent;
+  }
+  50% {
+    filter: brightness(1.04);
+    box-shadow: 0 0 30px color-mix(in srgb, var(--accent) 15%, transparent);
+  }
+}
+
+@keyframes thinking-text {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+@keyframes thinking-dots {
+  0%   { content: ''; }
+  25%  { content: ' ·'; }
+  50%  { content: ' · ·'; }
+  75%  { content: ' · · ·'; }
 }
 
 /* Ko Dim Effect (for Crow) */
@@ -255,8 +336,25 @@ body {
     flex-direction: column;
   }
 
+  #game-screen {
+    padding: 6px;
+  }
+
+  .turn-line {
+    margin: 4px auto;
+  }
+
+  #submit-bar {
+    height: 38px;
+    margin: 6px auto;
+  }
+
+  #controls {
+    gap: 8px;
+  }
+
   #controls button {
-    padding: 10px 20px;
-    font-size: 14px;
+    padding: 6px 16px;
+    font-size: 13px;
   }
 }

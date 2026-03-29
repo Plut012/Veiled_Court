@@ -31,7 +31,8 @@ const boardRenderer = {
 
   setupCanvasSize() {
     const container = this.canvas.parentElement;
-    const displaySize = Math.min(container.clientWidth, container.clientHeight) - 20;
+    // Use the smaller of container width/height, leave a small margin
+    const displaySize = Math.min(container.clientWidth, container.clientHeight) - 4;
     const dpr = window.devicePixelRatio || 1;
 
     this.canvas.width = displaySize * dpr;
@@ -86,19 +87,17 @@ const boardRenderer = {
       }
     }
 
-    // Draw last move indicator
+    // Draw last move indicator — small contrasting dot
     if (this.lastMove) {
       const cx = m + this.lastMove.x * cs;
       const cy = m + this.lastMove.y * cs;
-      const r = cs * 0.3;
+      const r = cs * 0.1;
       const stoneColor = this.board[this.lastMove.y][this.lastMove.x];
 
       this.ctx.beginPath();
       this.ctx.arc(cx, cy, r, 0, Math.PI * 2);
-      this.ctx.fillStyle = stoneColor === 1 ? accent : boardSecondary;
-      this.ctx.globalAlpha = 0.7;
+      this.ctx.fillStyle = stoneColor === 1 ? '#e8e0d4' : '#1a1815';
       this.ctx.fill();
-      this.ctx.globalAlpha = 1.0;
     }
 
     // Draw preview move (semi-transparent)
@@ -196,7 +195,14 @@ const boardRenderer = {
   },
 
   setBoard(boardData) {
-    this.board = boardData;
+    // Convert server format ("black"/"white"/null) to numeric (1/2/0)
+    this.board = boardData.map(row =>
+      row.map(cell => {
+        if (cell === 'black') return 1;
+        if (cell === 'white') return 2;
+        return 0;
+      })
+    );
     this.draw();
   },
 
