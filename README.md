@@ -122,14 +122,37 @@ cargo test
 - `docs/architecture.md` - System design
 - `docs/implementation_plan.md` - Build guide
 
+## Deployment
+
+### Ubuntu Server with NVIDIA GPU
+
+**Quick Start:**
+```bash
+git clone <repo-url> animal_go
+cd animal_go
+sudo ./scripts/deploy_server.sh
+```
+
+See [QUICKSTART_DEPLOY.md](QUICKSTART_DEPLOY.md) for details.
+
+**What it does:**
+- Installs Docker + NVIDIA Container Toolkit
+- Downloads neural networks (~600MB)
+- Builds and starts containerized server
+- Configures auto-start on reboot
+
+**Full guides:**
+- [QUICKSTART_DEPLOY.md](QUICKSTART_DEPLOY.md) - 3-step deployment
+- [DEPLOY.md](DEPLOY.md) - Complete manual setup
+- [DOCKER_DEPLOYMENT.md](DOCKER_DEPLOYMENT.md) - Docker details
+
 ## Next Steps
 
-1. Install KataGo binary and models
-2. Update config file paths
+1. ~~Install KataGo binary and models~~ ✅ Automated via deployment script
+2. ~~Deploy to server~~ ✅ Automated via deployment script
 3. Implement Pass/Resign handlers
 4. Generate spirit portraits
 5. Add game end detection
-6. Deploy to server
 
 ## License
 
