@@ -14,18 +14,25 @@ pub enum Spirit {
 }
 
 impl Spirit {
-    pub fn config_file(&self) -> &'static str {
-        match self {
-            Spirit::Dragon => "configs/dragon.cfg",
-            Spirit::MantisShrimp => "configs/mantis_shrimp.cfg",
-            Spirit::Crane => "configs/crane.cfg",
-            Spirit::Spider => "configs/spider.cfg",
-            Spirit::Eagle => "configs/eagle.cfg",
-            Spirit::Lion => "configs/lion.cfg",
-            Spirit::PrayingMantis => "configs/praying_mantis.cfg",
-            Spirit::Jaguar => "configs/jaguar.cfg",
-            Spirit::Crow => "configs/crow.cfg",
-        }
+    /// Get the config file path for this spirit
+    /// Checks ANIMAL_GO_CONFIG_DIR env var first (for dev mode), falls back to "configs/"
+    pub fn config_file(&self) -> String {
+        let config_dir = std::env::var("ANIMAL_GO_CONFIG_DIR")
+            .unwrap_or_else(|_| "configs".to_string());
+
+        let filename = match self {
+            Spirit::Dragon => "dragon.cfg",
+            Spirit::MantisShrimp => "mantis_shrimp.cfg",
+            Spirit::Crane => "crane.cfg",
+            Spirit::Spider => "spider.cfg",
+            Spirit::Eagle => "eagle.cfg",
+            Spirit::Lion => "lion.cfg",
+            Spirit::PrayingMantis => "praying_mantis.cfg",
+            Spirit::Jaguar => "jaguar.cfg",
+            Spirit::Crow => "crow.cfg",
+        };
+
+        format!("{}/{}", config_dir, filename)
     }
 
     pub fn from_string(s: &str) -> Option<Spirit> {

@@ -1,0 +1,53 @@
+DOWNLOAD NEURAL NETWORKS - Browser Method
+==========================================
+
+Since automated downloads are blocked, use your browser:
+
+METHOD 1 - Minimal Setup (Test with 4 spirits)
+-----------------------------------------------
+Download ONLY the standard network:
+
+1. Open in browser: https://katagotraining.org/
+2. Find latest network starting with "kata1-b28c512nbt"
+3. Right-click → "Save Link As"
+4. Save to THIS directory: /data/dev/animal_go/assets/katago/
+5. Rename to: kata1-b28c512nbt.bin.gz
+
+This lets you test: Mantis Shrimp, Praying Mantis, Jaguar, Crow
+
+
+METHOD 2 - Full Setup (All 9 spirits)
+--------------------------------------
+Download BOTH networks:
+
+STANDARD NET (~400MB):
+1. Browser: https://katagotraining.org/
+2. Download latest "kata1-b28c512nbt-*.bin.gz"
+3. Save to: /data/dev/animal_go/assets/katago/
+4. Rename to: kata1-b28c512nbt.bin.gz
+
+HUMAN NET (~200MB):
+1. Browser: https://github.com/lightvector/KataGo/releases/tag/v1.15.0
+2. Download "b18c384nbt-humanv0.bin.gz"
+3. Save to: /data/dev/animal_go/assets/katago/
+4. Keep the name as-is
+
+This lets you test all 9 spirits including Dragon, Crane, Spider, Eagle, Lion
+
+
+AFTER DOWNLOADING
+-----------------
+Run these commands:
+
+cd /data/dev/animal_go
+./scripts/update-config-paths.sh
+./scripts/run-dev.sh
+
+Then open: http://localhost:3000
+
+
+FILE LOCATIONS
+--------------
+Models should be in:
+/data/dev/animal_go/assets/katago/kata1-b28c512nbt.bin.gz
+/data/dev/animal_go/assets/katago/b18c384nbt-humanv0.bin.gz

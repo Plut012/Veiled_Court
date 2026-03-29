@@ -154,7 +154,7 @@ async fn handle_init_game(
 
     // Spawn KataGo with spirit config
     let config_path = spirit.config_file();
-    let mut katago_process = match KataGoProcess::spawn(config_path) {
+    let mut katago_process = match KataGoProcess::spawn(&config_path) {
         Ok(process) => process,
         Err(e) => {
             return ServerMessage::Error {
