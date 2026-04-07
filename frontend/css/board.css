@@ -51,6 +51,9 @@ body:has(#selection-screen) {
   text-align: center;
   margin-bottom: 30px;
   letter-spacing: 0.15em;
+  cursor: default;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 /* Spirit Grid */
@@ -387,6 +390,71 @@ body:has(#selection-screen) {
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.6; }
+}
+
+/* Local pass-and-play */
+.submit-bar-local {
+  width: 100%;
+  max-width: 300px;
+  height: 40px;
+  background: var(--accent);
+  opacity: 0.4;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  margin: 8px auto;
+  flex-shrink: 0;
+  transition: opacity 0.2s ease;
+}
+
+.submit-bar-local:active {
+  opacity: 0.6;
+}
+
+#local-controls {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+#undo-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: transparent;
+  color: var(--accent);
+  opacity: 0.3;
+  font-size: 16px;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+#undo-btn:hover {
+  opacity: 0.6;
+}
+
+#local-controls #pass-btn {
+  padding: 6px 20px;
+  background: transparent;
+  color: var(--accent);
+  opacity: 0.3;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 14px;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+#local-controls #pass-btn:hover {
+  opacity: 0.6;
 }
 
 /* Responsive */

@@ -47,6 +47,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  // Secret: click title for local pass-and-play
+  document.querySelector('#selection-screen h1').addEventListener('click', () => {
+    window.location.href = '/local.html';
+  });
+
   // Start game button
   startBtn.addEventListener('click', () => {
     if (selectedSpirit) {

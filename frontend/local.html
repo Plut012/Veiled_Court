@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>The Court</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1A1610">
+  <link rel="stylesheet" href="css/themes.css">
+  <link rel="stylesheet" href="css/board.css">
+</head>
+<body class="theme-local">
+  <div id="game-screen">
+    <div id="submit-bar-top" class="submit-bar-local" style="display:none"></div>
+
+    <div id="board-container">
+      <canvas id="board"></canvas>
+    </div>
+
+    <div id="submit-bar-bottom" class="submit-bar-local" style="display:none"></div>
+
+    <div id="local-controls">
+      <button id="undo-btn" title="Undo">&larr;</button>
+      <button id="pass-btn">Pass</button>
+    </div>
+  </div>
+
+  <script src="js/board.js"></script>
+  <script src="js/local.js"></script>
+</body>
+</html>

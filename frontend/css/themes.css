@@ -77,3 +77,10 @@
   --board-secondary: #2E3340;
   --accent: #E8EEF4;
 }
+
+/* Local pass-and-play */
+.theme-local {
+  --board-primary: #1A1610;
+  --board-secondary: #3D362A;
+  --accent: #A89880;
+}

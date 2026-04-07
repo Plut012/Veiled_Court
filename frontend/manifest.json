@@ -1,0 +1,21 @@
+{
+  "name": "The Court",
+  "short_name": "The Court",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0E0B1A",
+  "theme_color": "#0E0B1A",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "assets/portraits/dragon.jpeg",
+      "sizes": "192x192",
+      "type": "image/jpeg"
+    },
+    {
+      "src": "assets/portraits/dragon.jpeg",
+      "sizes": "512x512",
+      "type": "image/jpeg"
+    }
+  ]
+}

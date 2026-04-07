@@ -1,0 +1,22 @@
+#!/data/data/com.termux/files/usr/bin/bash
+# Launch The Court (local pass-and-play) on Android via Termux
+# Usage: ./play
+
+PORT=8080
+DIR="$(cd "$(dirname "$0")/frontend" && pwd)"
+
+# Kill any previous instance
+pkill -f "python3 -m http.server $PORT" 2>/dev/null
+
+echo "The Court — local play"
+echo "Opening in browser..."
+
+# Start server in background
+cd "$DIR" && python3 -m http.server "$PORT" --bind 127.0.0.1 > /dev/null 2>&1 &
+
+sleep 0.5
+termux-open-url "http://localhost:$PORT/local.html"
+
+echo "Running on localhost:$PORT"
+echo "Press Ctrl+C to stop"
+wait
