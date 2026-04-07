@@ -19,6 +19,17 @@ document.addEventListener('DOMContentLoaded', () => {
   gameClient.boardSize = boardSize;
   gameClient.spirit = selectedSpirit;
 
+  // Set spirit name
+  const nameMap = {
+    crane: 'Tsuru', eagle: 'Garuda', lion: 'Sekhmet',
+    praying_mantis: 'Cǎotáng', spider: 'Anansi', crow: 'Morrígan',
+    jaguar: 'Balam', dragon: 'Ryūjin', mantis_shrimp: 'Zhìyǎn',
+  };
+  const spiritNameEl = document.getElementById('spirit-name');
+  if (selectedSpirit && nameMap[selectedSpirit]) {
+    spiritNameEl.textContent = nameMap[selectedSpirit];
+  }
+
   // Initialize board renderer (behind the loading overlay)
   boardRenderer.init('board', boardSize);
 
@@ -53,25 +64,50 @@ document.addEventListener('DOMContentLoaded', () => {
     dismissOverlay();
   };
 
-  // Connect — if we have a saved session, onopen will send ResumeGame automatically.
-  // Otherwise, wait for the socket to open and send InitGame.
+  // Try to connect — if backend is unavailable, dismiss overlay after timeout
   gameClient.connect();
+
+  const connectTimeout = setTimeout(() => {
+    if (!gameClient.ws || gameClient.ws.readyState !== WebSocket.OPEN) {
+      console.log('No backend available — entering preview mode');
+      dismissOverlay();
+    }
+  }, 2000);
 
   if (!existingSession) {
     const waitForOpen = setInterval(() => {
       if (gameClient.ws && gameClient.ws.readyState === WebSocket.OPEN) {
         clearInterval(waitForOpen);
+        clearTimeout(connectTimeout);
         gameClient.initGame(selectedSpirit, boardSize, playerColor);
       }
     }, 100);
   }
 
-  // --- Board interaction (unchanged) ---
+  // --- Board interaction ---
   const canvas = document.getElementById('board');
   const submitBar = document.getElementById('submit-bar');
   let previewCoords = null;
+  let waitingForBot = false;
+
+  // Lock input when bot is thinking
+  const origHandleBotThinking = gameClient.handleBotThinking.bind(gameClient);
+  gameClient.handleBotThinking = function () {
+    waitingForBot = true;
+    origHandleBotThinking();
+  };
+
+  // Unlock input when board updates (bot has moved)
+  const origHandleBoardUpdate2 = gameClient.handleBoardUpdate.bind(gameClient);
+  gameClient.handleBoardUpdate = function (msg) {
+    waitingForBot = false;
+    origHandleBoardUpdate2(msg);
+    dismissOverlay();
+  };
 
   canvas.addEventListener('click', (e) => {
+    if (waitingForBot) return;
+
     const coords = boardRenderer.coordsFromClick(e);
     if (!coords) return;
 
@@ -85,9 +121,10 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   submitBar.addEventListener('click', () => {
-    if (!previewCoords) return;
+    if (!previewCoords || waitingForBot) return;
     const coord = gameClient.coordToGTP(previewCoords.x, previewCoords.y);
     gameClient.makeMove(coord);
+    waitingForBot = true;
     boardRenderer.clearPreview();
     previewCoords = null;
     submitBar.style.display = 'none';
@@ -107,8 +144,10 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   document.getElementById('pass-btn').addEventListener('click', () => {
+    if (waitingForBot) return;
     if (confirm('Pass?')) {
       gameClient.pass();
+      waitingForBot = true;
       boardRenderer.clearPreview();
       previewCoords = null;
       submitBar.style.display = 'none';
