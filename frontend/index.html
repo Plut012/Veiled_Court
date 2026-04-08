@@ -5,95 +5,92 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="theme-color" content="#0D1F1A">
+  <meta name="theme-color" content="#0E0B1A">
   <link rel="manifest" href="manifest.json">
-  <title>Spirit Animals - Go</title>
+  <title>The Court</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/themes.css">
   <link rel="stylesheet" href="css/board.css">
 </head>
-<body class="theme-dragon">
+<body>
   <div id="selection-screen">
-    <h1>The Spirit Animals of Go</h1>
-    <p>Choose your opponent. Study their nature. The board will reveal your own.</p>
+    <h1>The Court</h1>
 
     <div id="spirit-grid">
-      <!-- Dragon - Living Go -->
-      <div class="spirit-card" data-spirit="dragon" data-theme="theme-dragon">
-        <h3>🐉 Dragon</h3>
-        <p>Living Go</p>
-      </div>
-
-      <!-- Mantis Shrimp - The AI Disciple -->
-      <div class="spirit-card" data-spirit="mantis_shrimp" data-theme="theme-mantis-shrimp">
-        <h3>🦐 Mantis Shrimp</h3>
-        <p>The AI Disciple</p>
-      </div>
-
-      <!-- Crane - The Classicist -->
       <div class="spirit-card" data-spirit="crane" data-theme="theme-crane">
-        <h3>🕊️ Crane</h3>
-        <p>The Classicist</p>
+        <img class="spirit-portrait" src="assets/portraits/crane.jpeg" alt="Tsuru">
+        <h3>Tsuru</h3>
+        <p>Each move placed as if it were the last.</p>
       </div>
 
-      <!-- Spider - The Trickster -->
-      <div class="spirit-card" data-spirit="spider" data-theme="theme-spider">
-        <h3>🕷️ Spider</h3>
-        <p>The Trickster</p>
-      </div>
-
-      <!-- Eagle - The Moyo Artist -->
       <div class="spirit-card" data-spirit="eagle" data-theme="theme-eagle">
-        <h3>🦅 Eagle</h3>
-        <p>The Moyo Artist</p>
+        <img class="spirit-portrait" src="assets/portraits/eagle.jpeg" alt="Garuda">
+        <h3>Garuda</h3>
+        <p>The territory is the sky. You are already inside it.</p>
       </div>
 
-      <!-- Lion - The Territorial Builder -->
       <div class="spirit-card" data-spirit="lion" data-theme="theme-lion">
-        <h3>🦁 Lion</h3>
-        <p>The Territorial Builder</p>
+        <img class="spirit-portrait" src="assets/portraits/lion.jpeg" alt="Sekhmet">
+        <h3>Sekhmet</h3>
+        <p>Was here before you arrived. Will remain after you leave.</p>
       </div>
 
-      <!-- Praying Mantis - The Blood Warrior -->
       <div class="spirit-card" data-spirit="praying_mantis" data-theme="theme-praying-mantis">
-        <h3>🦗 Praying Mantis</h3>
-        <p>The Blood Warrior</p>
+        <img class="spirit-portrait" src="assets/portraits/praying_mantis.jpeg" alt="Cǎotáng">
+        <h3>Cǎotáng</h3>
+        <p>Stillness. Then not.</p>
       </div>
 
-      <!-- Jaguar - The Endgame Assassin -->
-      <div class="spirit-card" data-spirit="jaguar" data-theme="theme-jaguar">
-        <h3>🐆 Jaguar</h3>
-        <p>The Endgame Assassin</p>
+      <div class="spirit-card" data-spirit="spider" data-theme="theme-spider">
+        <img class="spirit-portrait" src="assets/portraits/spider.jpeg" alt="Anansi">
+        <h3>Anansi</h3>
+        <p>The web was finished before you noticed the thread.</p>
       </div>
 
-      <!-- Crow - The Ko Monster -->
       <div class="spirit-card" data-spirit="crow" data-theme="theme-crow">
-        <h3>🐦‍⬛ Crow</h3>
-        <p>The Ko Monster</p>
+        <img class="spirit-portrait" src="assets/portraits/crow.jpeg" alt="Morrígan">
+        <h3>Morrígan</h3>
+        <p>Takes something small. Returns for the rest.</p>
+      </div>
+
+      <div class="spirit-card" data-spirit="jaguar" data-theme="theme-jaguar">
+        <img class="spirit-portrait" src="assets/portraits/jaguar_warm.jpeg" alt="Balam">
+        <h3>Balam</h3>
+        <p>What you cannot see is most of what is there.</p>
+      </div>
+
+      <div class="spirit-card" data-spirit="dragon" data-theme="theme-dragon">
+        <img class="spirit-portrait" src="assets/portraits/dragon.jpeg" alt="Ryūjin">
+        <h3>Ryūjin</h3>
+        <p>Older than the board. Older than the game.</p>
+      </div>
+
+      <div class="spirit-card" data-spirit="mantis_shrimp" data-theme="theme-mantis-shrimp">
+        <img class="spirit-portrait" src="assets/portraits/mantis_shrimp.jpeg" alt="Zhìyǎn">
+        <h3>Zhìyǎn</h3>
+        <p>Sees colors you cannot name.</p>
       </div>
     </div>
 
     <div id="game-options">
-      <div>
-        <label for="board-size">Board Size:</label>
-        <select id="board-size">
-          <option value="9">9×9</option>
-          <option value="13">13×13</option>
-          <option value="19" selected>19×19</option>
-        </select>
+      <div id="board-size-picker">
+        <button class="size-btn" data-size="9">9</button>
+        <button class="size-btn" data-size="13">13</button>
+        <button class="size-btn selected" data-size="19">19</button>
       </div>
 
-      <div>
-        <label for="player-color">Your Color:</label>
-        <select id="player-color">
-          <option value="black">Black</option>
-          <option value="white" selected>White</option>
-        </select>
+      <div id="color-picker">
+        <button class="color-btn selected" data-color="black" title="Black">●</button>
+        <button class="color-btn" data-color="white" title="White">○</button>
       </div>
     </div>
 
-    <button id="start-game-btn" disabled>Select a Spirit to Begin</button>
+    <button id="start-game-btn" disabled>Begin</button>
   </div>
 
   <script src="js/selection.js"></script>
+  <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
 </body>
 </html>

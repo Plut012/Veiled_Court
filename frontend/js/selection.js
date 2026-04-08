@@ -26,9 +26,30 @@ document.addEventListener('DOMContentLoaded', () => {
       if (selectedTheme) {
         switchTheme(selectedSpirit);
       } else {
-        document.body.className = 'theme-dragon'; // default
+        document.body.className = '';
       }
     });
+  });
+
+  // Size picker
+  document.querySelectorAll('.size-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.size-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+    });
+  });
+
+  // Color picker
+  document.querySelectorAll('.color-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+    });
+  });
+
+  // Secret: click title for local pass-and-play
+  document.querySelector('#selection-screen h1').addEventListener('click', () => {
+    window.location.href = '/local.html';
   });
 
   // Start game button
@@ -58,7 +79,6 @@ function selectSpirit(card) {
   // Enable start button
   const startBtn = document.getElementById('start-game-btn');
   startBtn.disabled = false;
-  startBtn.textContent = `Play as ${card.querySelector('h3').textContent}`;
 
   console.log('Selected spirit:', selectedSpirit);
 }
@@ -89,14 +109,13 @@ function switchTheme(spiritName) {
 }
 
 function startGame() {
-  if (!selectedSpirit) {
-    alert('Please select a spirit first');
-    return;
-  }
+  if (!selectedSpirit) return;
 
-  // Get game options
-  const boardSize = parseInt(document.getElementById('board-size').value);
-  const playerColor = document.getElementById('player-color').value;
+  // Get game options from picker buttons
+  const activeSize = document.querySelector('.size-btn.selected');
+  const activeColor = document.querySelector('.color-btn.selected');
+  const boardSize = parseInt(activeSize ? activeSize.dataset.size : '19');
+  const playerColor = activeColor ? activeColor.dataset.color : 'black';
 
   // Store selections and navigate immediately — game.html handles the connection
   sessionStorage.setItem('selectedSpirit', selectedSpirit);

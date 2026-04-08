@@ -37,9 +37,9 @@ function updateJaguarPalette(moveNumber) {
     document.body.classList.add('theme-jaguar-cold');
 
     // Update portrait if available
-    const portrait = document.getElementById('spirit-portrait');
+    const portrait = document.getElementById('game-portrait');
     if (portrait) {
-      portrait.src = 'assets/portraits/jaguar_cold.png';
+      portrait.src = 'assets/portraits/jaguar_cold.jpeg';
     }
   } else {
     // Linear interpolation from warm to cold (0 to 120)
