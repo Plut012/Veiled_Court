@@ -64,23 +64,24 @@ else
       tee /etc/apt/sources.list.d/docker.list > /dev/null
 
     apt-get update
-    apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker compose-plugin
+    apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
     # Add user to docker group
     usermod -aG docker "$ACTUAL_USER"
-
     echo "✓ Docker installed"
 fi
+
+# Ensure Docker starts on boot
+systemctl enable docker
 echo ""
 
 # Step 3: Install NVIDIA Container Toolkit
 echo "=== Step 3: Installing NVIDIA Container Toolkit ==="
-if docker run --rm --gpus all nvidia/cuda:12.1.0-base-ubuntu22.04 nvidia-smi &>/dev/null 2>&1; then
-    echo "✓ NVIDIA Container Toolkit already working"
+if grep -q '"nvidia"' /etc/docker/daemon.json 2>/dev/null; then
+    echo "✓ NVIDIA Container Toolkit already configured"
 else
     echo "Installing NVIDIA Container Toolkit..."
 
-    # Modern method for adding NVIDIA repository (works with Ubuntu 20.04+)
     curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | \
         gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
     curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
@@ -96,25 +97,63 @@ else
 
     echo "✓ NVIDIA Container Toolkit installed"
 fi
-
-# Verify GPU access
-echo "Testing GPU access in Docker..."
-docker run --rm --gpus all nvidia/cuda:12.1.0-base-ubuntu22.04 nvidia-smi >/dev/null 2>&1
-echo "✓ GPU accessible from Docker"
 echo ""
 
 # Step 4: Download neural networks
-echo "=== Step 4: Downloading Neural Networks (~600MB) ==="
+echo "=== Step 4: Downloading Neural Networks ==="
 cd "$PROJECT_DIR"
 
-if [ -d "nets" ] && [ -n "$(ls -A nets/*.bin.gz 2>/dev/null)" ]; then
+MIN_STANDARD_SIZE=100000000  # ~100MB minimum
+MIN_HUMAN_SIZE=50000000      # ~50MB minimum
+NEEDS_DOWNLOAD=false
+
+STANDARD_NET="${PROJECT_DIR}/nets/kata1-b28c512nbt.bin.gz"
+HUMAN_NET="${PROJECT_DIR}/nets/b18c384nbt-humanv0.bin.gz"
+
+mkdir -p "${PROJECT_DIR}/nets"
+
+# Validate standard net
+if [ -f "$STANDARD_NET" ]; then
+    SIZE=$(stat -c%s "$STANDARD_NET" 2>/dev/null || echo 0)
+    if [ "$SIZE" -lt "$MIN_STANDARD_SIZE" ]; then
+        echo "⚠ Standard network is too small (${SIZE} bytes) — re-downloading"
+        NEEDS_DOWNLOAD=true
+    fi
+else
+    NEEDS_DOWNLOAD=true
+fi
+
+# Validate human net
+if [ -f "$HUMAN_NET" ]; then
+    SIZE=$(stat -c%s "$HUMAN_NET" 2>/dev/null || echo 0)
+    if [ "$SIZE" -lt "$MIN_HUMAN_SIZE" ]; then
+        echo "⚠ Human network is too small (${SIZE} bytes) — re-downloading"
+        NEEDS_DOWNLOAD=true
+    fi
+else
+    NEEDS_DOWNLOAD=true
+fi
+
+if [ "$NEEDS_DOWNLOAD" = true ]; then
+    echo "Downloading neural networks (this may take a few minutes)..."
+    su - "$ACTUAL_USER" -c "cd '$PROJECT_DIR' && ./scripts/download_nets.sh"
+
+    # Verify after download
+    for NET in "$STANDARD_NET" "$HUMAN_NET"; do
+        if [ ! -f "$NET" ]; then
+            echo "ERROR: $NET not found after download"
+            exit 1
+        fi
+        SIZE=$(stat -c%s "$NET")
+        if [ "$SIZE" -lt "$MIN_HUMAN_SIZE" ]; then
+            echo "ERROR: $NET is only ${SIZE} bytes — download likely failed"
+            exit 1
+        fi
+    done
+    echo "✓ Neural networks downloaded and verified"
+else
     echo "✓ Neural networks already downloaded"
     ls -lh nets/*.bin.gz | awk '{print "  " $9 " (" $5 ")"}'
-else
-    echo "Downloading neural networks (this may take a few minutes)..."
-    # Run as the actual user, not root
-    su - "$ACTUAL_USER" -c "cd '$PROJECT_DIR' && ./scripts/download_nets.sh"
-    echo "✓ Neural networks downloaded"
 fi
 echo ""
 
@@ -136,13 +175,13 @@ echo ""
 
 # Step 6: Build and start the container
 echo "=== Step 6: Building and Starting Server ==="
-echo "This will take 10-15 minutes on first run..."
+echo "This will take a few minutes on first run..."
 echo ""
 
 cd "$PROJECT_DIR"
 
-# Run as the actual user
-su - "$ACTUAL_USER" -c "cd '$PROJECT_DIR' && docker compose up --build -d"
+# Run docker as root — user may not have docker group membership yet
+docker compose up --build -d
 
 echo ""
 echo "✓ Server started"
@@ -170,7 +209,7 @@ echo ""
 if [ "$SERVER_READY" = true ]; then
     echo "✓ Server is responding"
 else
-    echo "⚠ Server not responding yet (may still be starting up)"
+    echo "⚠ Server not responding yet (may still be loading GPU model)"
     echo "Check logs with: docker compose logs -f"
 fi
 echo ""
@@ -196,8 +235,6 @@ echo "  Stop server:  docker compose down"
 echo "  Restart:      docker compose restart"
 echo "  Status:       docker compose ps"
 echo "  GPU usage:    nvidia-smi"
-echo ""
-echo "The server will auto-start on reboot."
 echo ""
 echo "Note: If you were added to the docker group for the first time,"
 echo "you may need to log out and back in to use docker without sudo."

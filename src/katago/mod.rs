@@ -4,6 +4,7 @@ use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 
 use crate::game::{Color, Position};
 
+pub mod analysis;
 pub mod jaguar;
 pub mod crow;
 
@@ -67,7 +68,7 @@ impl KataGoProcess {
         let mut child = cmd
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::null())
+            .stderr(Stdio::piped())
             .spawn()
             .map_err(|e| format!("Failed to spawn KataGo process: {}", e))?;
 
@@ -80,6 +81,22 @@ impl KataGoProcess {
             .stdout
             .take()
             .ok_or("Failed to open KataGo stdout")?;
+
+        let stderr = child
+            .stderr
+            .take()
+            .ok_or("Failed to open KataGo stderr")?;
+
+        // Log KataGo stderr in background so errors are visible
+        std::thread::spawn(move || {
+            let reader = BufReader::new(stderr);
+            for line in reader.lines() {
+                match line {
+                    Ok(l) => eprintln!("[KataGo] {}", l),
+                    Err(_) => break,
+                }
+            }
+        });
 
         Ok(Self {
             process: child,
@@ -105,7 +122,13 @@ impl KataGoProcess {
             .map_err(|e| format!("Failed to read from KataGo: {}", e))?;
 
         if first_line.is_empty() {
-            return Err("KataGo process closed unexpectedly".to_string());
+            // Check if process exited
+            let status = self.process.try_wait().ok().flatten();
+            let msg = match status {
+                Some(s) => format!("KataGo process exited with {}", s),
+                None => "KataGo process closed unexpectedly".to_string(),
+            };
+            return Err(format!("{} (command was: {})", msg, command));
         }
 
         // Check for success (=) or failure (?)

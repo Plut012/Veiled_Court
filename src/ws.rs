@@ -10,7 +10,7 @@ use uuid::Uuid;
 use crate::game::{Color, Position, Game};
 use crate::katago::{KataGoProcess, jaguar};
 use crate::spirits::Spirit;
-use crate::state::{AppState, SessionData, SessionId};
+use crate::state::{AppState, PendingReview, SessionData, SessionId};
 
 /// Messages sent from client to server
 #[derive(Debug, Deserialize)]
@@ -29,6 +29,7 @@ enum ClientMessage {
     },
     Pass,
     Resign,
+    RequestReview,
 }
 
 /// Messages sent from server to client
@@ -53,6 +54,11 @@ enum ServerMessage {
     },
     GameOver {
         winner: String,
+    },
+    ReviewReady {
+        analysis: Vec<crate::katago::analysis::PositionAnalysis>,
+        boards: Vec<Vec<Vec<Option<String>>>>,
+        board_size: usize,
     },
     Error {
         message: String,
@@ -126,6 +132,10 @@ async fn handle_message(
 
         ClientMessage::Resign => {
             handle_resign(state).await
+        }
+
+        ClientMessage::RequestReview => {
+            handle_request_review(state).await
         }
     }
 }
@@ -204,13 +214,18 @@ async fn handle_init_game(
         move_number: 0,
         player_color,
         last_move: None,
+        move_history: Vec::new(),
     };
 
-    // Enforce single game — tear down any existing sessions
+    // Enforce single game — tear down any existing sessions and pending review
     let mut sessions = state.sessions.lock().await;
     sessions.clear();
     sessions.insert(session_id.clone(), session_data);
     drop(sessions);
+
+    let mut pending = state.pending_review.lock().await;
+    *pending = None;
+    drop(pending);
 
     // If bot plays first (player is white), generate bot move
     if player_color == Color::White {
@@ -242,7 +257,7 @@ async fn handle_init_game(
     }
 }
 
-/// Handle Resign — player forfeits, session is cleaned up
+/// Handle Resign — player forfeits, move history preserved for review
 async fn handle_resign(state: &Arc<AppState>) -> Vec<ServerMessage> {
     let mut sessions = state.sessions.lock().await;
     let session_id = match sessions.keys().next().cloned() {
@@ -257,18 +272,118 @@ async fn handle_resign(state: &Arc<AppState>) -> Vec<ServerMessage> {
     let session = sessions.remove(&session_id);
     drop(sessions);
 
-    let winner = match session {
+    match session {
         Some(s) => {
-            let bot_color = s.player_color.opposite();
-            match bot_color {
+            let winner = match s.player_color.opposite() {
                 Color::Black => "Black".to_string(),
                 Color::White => "White".to_string(),
+            };
+
+            // Preserve move history for potential review
+            let has_moves = !s.move_history.is_empty();
+            if has_moves {
+                let mut pending = state.pending_review.lock().await;
+                *pending = Some(PendingReview {
+                    move_history: s.move_history,
+                    board_size: s.board_size,
+                });
             }
+
+            println!("Game resigned. {} moves recorded for review.", if has_moves { "History" } else { "No" });
+
+            vec![ServerMessage::GameOver { winner }]
         }
-        None => "Unknown".to_string(),
+        None => vec![ServerMessage::Error {
+            message: "Session not found".to_string(),
+        }],
+    }
+}
+
+/// Handle RequestReview — run KataGo analysis on the completed game
+async fn handle_request_review(state: &Arc<AppState>) -> Vec<ServerMessage> {
+    // Take the pending review data
+    let pending = {
+        let mut pending = state.pending_review.lock().await;
+        pending.take()
     };
 
-    vec![ServerMessage::GameOver { winner }]
+    let pending = match pending {
+        Some(p) => p,
+        None => {
+            return vec![ServerMessage::Error {
+                message: "No game available for review".to_string(),
+            }];
+        }
+    };
+
+    let move_history = pending.move_history;
+    let board_size = pending.board_size;
+
+    println!(
+        "Starting analysis of {} moves on {}x{} board...",
+        move_history.len(),
+        board_size,
+        board_size
+    );
+
+    // Replay moves to generate board snapshots
+    let boards = replay_boards(&move_history, board_size);
+
+    // Run KataGo analysis on a blocking thread
+    let moves_clone = move_history.clone();
+    let analysis_result = tokio::task::spawn_blocking(move || {
+        let mut engine =
+            crate::katago::analysis::KataGoAnalysis::spawn("configs/analysis.cfg")?;
+        engine.analyze_game(&moves_clone, board_size)
+    })
+    .await;
+
+    match analysis_result {
+        Ok(Ok(analysis)) => {
+            println!("Analysis complete: {} positions analyzed", analysis.len());
+            vec![ServerMessage::ReviewReady {
+                analysis,
+                boards,
+                board_size,
+            }]
+        }
+        Ok(Err(e)) => vec![ServerMessage::Error {
+            message: format!("Analysis failed: {}", e),
+        }],
+        Err(e) => vec![ServerMessage::Error {
+            message: format!("Analysis task panicked: {}", e),
+        }],
+    }
+}
+
+/// Replay move history through the game engine to produce board snapshots
+fn replay_boards(
+    move_history: &[(String, String)],
+    board_size: usize,
+) -> Vec<Vec<Vec<Option<String>>>> {
+    let mut game = Game::with_size(board_size);
+    let mut boards = Vec::with_capacity(move_history.len() + 1);
+
+    // Snapshot the empty board
+    boards.push(board_to_strings(&game));
+
+    for (color_str, gtp_coord) in move_history {
+        let color = if color_str == "B" {
+            Color::Black
+        } else {
+            Color::White
+        };
+
+        if gtp_coord.to_lowercase() == "pass" {
+            game.pass();
+        } else if let Ok(pos) = KataGoProcess::parse_gtp_move(gtp_coord, board_size) {
+            let _ = game.place_stone(pos, color);
+        }
+
+        boards.push(board_to_strings(&game));
+    }
+
+    boards
 }
 
 /// Handle ResumeGame message — client reconnecting to an existing session
@@ -383,6 +498,13 @@ async fn make_human_move(
         .katago_process
         .play(session.player_color, position, session.board_size)?;
 
+    // Record in move history
+    let color_str = match session.player_color {
+        Color::Black => "B".to_string(),
+        Color::White => "W".to_string(),
+    };
+    session.move_history.push((color_str, gtp_coord.clone()));
+
     // Track last move and increment move number
     session.last_move = Some(gtp_coord);
     session.move_number += 1;
@@ -419,8 +541,16 @@ async fn make_bot_move(
     // Apply bot move to game state
     session.game_state.place_stone(bot_position, bot_color)?;
 
+    // Record in move history
+    let gtp_coord = KataGoProcess::position_to_gtp(bot_position, board_size);
+    let color_str = match bot_color {
+        Color::Black => "B".to_string(),
+        Color::White => "W".to_string(),
+    };
+    session.move_history.push((color_str, gtp_coord.clone()));
+
     // Track last move and increment move number
-    session.last_move = Some(KataGoProcess::position_to_gtp(bot_position, board_size));
+    session.last_move = Some(gtp_coord);
     session.move_number += 1;
 
     Ok(())

@@ -3,6 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#0D1F1A">
+  <link rel="manifest" href="manifest.json">
   <title>Game - Spirit Animals</title>
   <link rel="stylesheet" href="css/themes.css">
   <link rel="stylesheet" href="css/board.css">
@@ -27,6 +31,8 @@
       <button id="pass-btn">Pass</button>
       <button id="resign-btn">Resign</button>
     </div>
+
+    <div id="game-over" style="display:none"></div>
 
     <div id="info" style="display:none">
       <span id="move-count"></span>

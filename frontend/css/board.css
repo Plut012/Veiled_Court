@@ -312,6 +312,49 @@ body {
   75%  { content: ' · · ·'; }
 }
 
+/* Game Over */
+#game-over {
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  margin: 12px 0;
+  flex-shrink: 0;
+}
+
+#game-over-text {
+  color: var(--accent);
+  font-size: 18px;
+}
+
+#game-over-buttons {
+  display: flex;
+  gap: 12px;
+}
+
+#game-over-buttons button {
+  padding: 10px 28px;
+  border: 1px solid var(--board-secondary);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--board-secondary);
+  font-size: 15px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+#game-over-buttons button:first-child {
+  background: var(--accent);
+  color: var(--board-primary);
+  border-color: var(--accent);
+}
+
+#review-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
+}
+
 /* Ko Dim Effect (for Crow) */
 .ko-dim #board {
   opacity: 0.6;

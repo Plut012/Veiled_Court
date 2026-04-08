@@ -106,6 +106,12 @@ class GameClient {
     this.send(message);
   }
 
+  requestReview() {
+    const message = { type: 'RequestReview' };
+    console.log('Requesting review');
+    this.send(message);
+  }
+
   send(message) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(message));
@@ -135,6 +141,10 @@ class GameClient {
 
       case 'GameOver':
         this.handleGameOver(msg);
+        break;
+
+      case 'ReviewReady':
+        this.handleReviewReady(msg);
         break;
 
       case 'Error':
@@ -224,17 +234,49 @@ class GameClient {
     // Clear saved session — game is done
     sessionStorage.removeItem('sessionId');
 
-    // Display winner
-    const infoDiv = document.getElementById('info');
-    const resultText = document.createElement('div');
-    resultText.style.fontSize = '24px';
-    resultText.style.color = getComputedStyle(document.body).getPropertyValue('--accent');
-    resultText.textContent = `Game Over - ${msg.winner} wins!`;
-    infoDiv.appendChild(resultText);
+    // Hide game controls
+    document.getElementById('controls').style.display = 'none';
+    document.getElementById('submit-bar').style.display = 'none';
 
-    // Disable controls
-    document.getElementById('pass-btn').disabled = true;
-    document.getElementById('resign-btn').disabled = true;
+    // Show game-over UI with Review / New Game options
+    const gameOverDiv = document.getElementById('game-over');
+    if (gameOverDiv) {
+      const accent = getComputedStyle(document.body).getPropertyValue('--accent').trim();
+      const secondary = getComputedStyle(document.body).getPropertyValue('--board-secondary').trim();
+
+      gameOverDiv.innerHTML = `
+        <div id="game-over-text">${msg.winner} wins</div>
+        <div id="game-over-buttons">
+          <button id="review-btn">Review</button>
+          <button id="new-game-btn">New Game</button>
+        </div>
+      `;
+      gameOverDiv.style.display = 'flex';
+
+      document.getElementById('review-btn').addEventListener('click', () => {
+        gameOverDiv.innerHTML = '<div id="review-loading"><div id="loading-spirit"></div></div>';
+        this.requestReview();
+      });
+
+      document.getElementById('new-game-btn').addEventListener('click', () => {
+        sessionStorage.removeItem('sessionId');
+        window.location.href = '/';
+      });
+    }
+  }
+
+  handleReviewReady(msg) {
+    console.log('Review ready:', msg.analysis.length, 'positions');
+
+    // Store review data for the review page
+    sessionStorage.setItem('reviewData', JSON.stringify({
+      analysis: msg.analysis,
+      boards: msg.boards,
+      board_size: msg.board_size,
+    }));
+
+    // Navigate to review screen
+    window.location.href = '/review.html';
   }
 
   handleError(msg) {

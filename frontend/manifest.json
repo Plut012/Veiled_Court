@@ -1,0 +1,9 @@
+{
+  "name": "Veiled Court",
+  "short_name": "Veiled Court",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0D1F1A",
+  "theme_color": "#0D1F1A",
+  "orientation": "portrait"
+}
