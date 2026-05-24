@@ -1,5 +1,5 @@
 #!/bin/bash
-# Run Spirit Animals Go in dev mode
+# Run Veiled Court in dev mode
 # Uses lightweight configs for fast iteration
 
 set -e
@@ -16,11 +16,11 @@ if [ ! -d "configs-dev" ]; then
 fi
 
 # Set environment variable to use dev configs
-export ANIMAL_GO_CONFIG_DIR="${PROJECT_DIR}/configs-dev"
+export KITSUNE_CONFIG_DIR="${PROJECT_DIR}/configs-dev"
 
-echo "=== Running Spirit Animals Go - Dev Mode ==="
+echo "=== Veiled Court — Dev Mode ==="
 echo ""
-echo "Config dir: ${ANIMAL_GO_CONFIG_DIR}"
+echo "Config dir: ${KITSUNE_CONFIG_DIR}"
 echo "GPU: Quadro P2000 (4GB VRAM)"
 echo "Visit counts: 50-200 (fast responses)"
 echo ""

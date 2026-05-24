@@ -5,7 +5,7 @@
 set -e
 
 echo "========================================"
-echo "Spirit Animals Go - Server Deployment"
+echo "Veiled Court — Server Deployment"
 echo "========================================"
 echo ""
 

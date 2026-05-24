@@ -101,7 +101,7 @@ ok "${SPIRIT_COUNT} spirits  ${DIM}${SPIRITS}${R}"
 
 header "server"
 
-export ANIMAL_GO_CONFIG_DIR="$(pwd)/${CONFIG_DIR}"
+export KITSUNE_CONFIG_DIR="$(pwd)/${CONFIG_DIR}"
 export KATAGO_BINARY="${KATAGO_BINARY:-assets/katago/katago}"
 export KATAGO_MODEL="${KATAGO_MODEL:-${STANDARD_NET}}"
 export KATAGO_HUMAN_MODEL="${KATAGO_HUMAN_MODEL:-${HUMAN_NET}}"
@@ -121,7 +121,7 @@ if [ "$MODE" = "prod" ]; then
     ok "image built"
 
     # stop old container if running
-    if docker ps -q -f name=animal-go-prod &>/dev/null; then
+    if docker ps -q -f name=kitsune-prod &>/dev/null; then
         docker compose down --timeout 5 2>/dev/null || true
     fi
 
@@ -141,7 +141,7 @@ if [ "$MODE" = "prod" ]; then
 
     # tail logs with clean formatting
     docker compose logs -f 2>&1 | while IFS= read -r line; do
-        # strip docker compose prefix (e.g. "animal-go-prod  | ")
+        # strip docker compose prefix (e.g. "kitsune-prod  | ")
         clean=$(echo "$line" | sed 's/^[a-zA-Z0-9_-]*\s*| //')
         log "${DIM}${clean}${R}"
     done

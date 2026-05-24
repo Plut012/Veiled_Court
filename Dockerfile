@@ -1,4 +1,4 @@
-# Spirit Animals Go - Production Dockerfile
+# Veiled Court - Production Dockerfile
 # Multi-stage build: compile Rust in a builder, copy binary to slim runtime
 
 # --- Builder stage ---
@@ -32,23 +32,23 @@ RUN wget -q https://github.com/lightvector/KataGo/releases/download/v1.16.4/kata
 WORKDIR /app
 
 # Copy compiled binary from builder
-COPY --from=builder /build/target/release/animal_go ./animal_go
+COPY --from=builder /build/target/release/kitsune ./kitsune
 
 # Copy static assets (configs, frontend)
 COPY configs/ ./configs/
 COPY frontend/ ./frontend/
 
-# Neural nets are mounted as a volume, not baked in
-# Mount host nets/ to /app/nets/ via docker-compose
-VOLUME /app/nets
-
-# Environment variables
-ENV KATAGO_BINARY=/usr/local/bin/katago
-ENV KATAGO_MODEL=/app/nets/kata1-b28c512nbt.bin.gz
-ENV KATAGO_HUMAN_MODEL=/app/nets/b18c384nbt-humanv0.bin.gz
-ENV ANIMAL_GO_CONFIG_DIR=/app/configs
-ENV RUST_LOG=info
+# Copy neural networks into image
+COPY assets/katago/kata1-b28c512nbt.bin.gz /app/models/
+COPY assets/katago/b18c384nbt-humanv0.bin.gz /app/models/
 
 EXPOSE 3000
 
-CMD ["./animal_go"]
+# Environment variables
+ENV KATAGO_BINARY=/usr/local/bin/katago
+ENV KATAGO_MODEL=/app/models/kata1-b28c512nbt.bin.gz
+ENV KATAGO_HUMAN_MODEL=/app/models/b18c384nbt-humanv0.bin.gz
+ENV KITSUNE_CONFIG_DIR=/app/configs
+ENV RUST_LOG=info
+
+CMD ["./kitsune"]

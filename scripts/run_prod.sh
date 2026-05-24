@@ -1,12 +1,12 @@
 #!/bin/bash
-# Run Animal Go in production mode (desktop - with GPU)
+# Run Veiled Court in production mode (desktop - with GPU)
 # Uses real KataGo with CUDA acceleration
 
 set -e
 
 cd "$(dirname "$0")/.."
 
-echo "=== Animal Go - Production Mode ==="
+echo "=== Veiled Court — Production Mode ==="
 echo "Using: Real KataGo with NVIDIA GPU"
 echo ""
 

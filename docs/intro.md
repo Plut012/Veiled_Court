@@ -1,4 +1,4 @@
-# The Spirit Animals of Go
+# The Court
 
 Go is not merely a game of stones and territory. It is a mirror — reflecting the mind, the instincts, and the soul of the one who plays.
 

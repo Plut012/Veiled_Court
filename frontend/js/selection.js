@@ -3,6 +3,34 @@
 
 let selectedSpirit = null;
 let selectedTheme = null;
+let podReady = false;
+
+// Summon the GPU pod as soon as the selection page loads.
+// The pod boots while the player browses spirits.
+fetch('/summon', { method: 'POST' })
+  .then(r => r.json())
+  .then(data => {
+    if (data.status === 'ready') {
+      podReady = true;
+    } else {
+      pollStatus();
+    }
+  })
+  .catch(() => {
+    // Running without coordinator (direct to game server) — that's fine
+    podReady = true;
+  });
+
+function pollStatus() {
+  const poll = setInterval(() => {
+    fetch('/status').then(r => r.json()).then(data => {
+      if (data.ready) {
+        podReady = true;
+        clearInterval(poll);
+      }
+    }).catch(() => {});
+  }, 3000);
+}
 
 // Set up event listeners when DOM loads
 document.addEventListener('DOMContentLoaded', () => {

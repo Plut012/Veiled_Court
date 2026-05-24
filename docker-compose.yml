@@ -1,16 +1,22 @@
 services:
-  animal-go:
+  kitsune:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: animal-go-prod
-    runtime: nvidia
+    container_name: kitsune-prod
     ports:
       - "3000:3000"
     environment:
-      - NVIDIA_VISIBLE_DEVICES=all
-      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - KATAGO_BINARY=/usr/local/bin/katago
+      - KITSUNE_CONFIG_DIR=/app/configs
+      - RUST_LOG=info
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
     restart: unless-stopped
     volumes:
-      - ./nets:/app/nets:ro
       - ./logs:/app/logs

@@ -1,30 +1,6 @@
-# Architecture Overview
+# Architecture
 
-## Current State
-
-The existing codebase (`phone_go`) is a **thin proxy client**. It owns the UI and a lightweight Python Flask server that bypasses CORS and forwards traffic to OGS. All game logic, bot intelligence, and state management live on OGS's infrastructure.
-
-```
-CURRENT
-──────────────────────────────────────────
-Browser (HTML/JS)
-    ↕  HTTP + WebSocket
-Python Flask Proxy (localhost:5000)
-    ↕  REST + WebSocket forwarded
-OGS Server
-    ├── Game state & rules
-    ├── Bot processes (Amy, KataGo, Nightly)
-    └── Auth & session
-──────────────────────────────────────────
-```
-
----
-
-## Target State
-
-The hosted server owns everything. OGS is removed entirely. KataGo runs locally as a managed subprocess pool, one process per active game. Game state, rules enforcement, session management, and real-time communication are all handled by the new backend.
-
-**Technology Decision:** Rust + Axum (adapting from the existing `go` project which already has production-tested rules engine, KataGo integration, and WebSocket infrastructure)
+Rust + Axum server with KataGo subprocess management. One KataGo process per active game, configured per-spirit. Frontend is vanilla HTML/CSS/JS with a canvas board renderer.
 
 ```
 TARGET
@@ -288,7 +264,7 @@ Host the web server on a cheap VPS (for uptime and public IP). The VPS calls bac
 ## File Structure (Target)
 
 ```
-animal_go/
+kitsune/
 ├── src/
 │   ├── main.rs                 # Axum app, WebSocket handler, routes
 │   ├── state.rs                # Session manager, in-memory game store

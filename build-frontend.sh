@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build script for Spirit Animals Go frontend
+# Build script for Veiled Court frontend
 
 set -e
 

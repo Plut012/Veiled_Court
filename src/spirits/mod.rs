@@ -15,9 +15,9 @@ pub enum Spirit {
 
 impl Spirit {
     /// Get the config file path for this spirit
-    /// Checks ANIMAL_GO_CONFIG_DIR env var first (for dev mode), falls back to "configs/"
+    /// Checks KITSUNE_CONFIG_DIR env var first (for dev mode), falls back to "configs/"
     pub fn config_file(&self) -> String {
-        let config_dir = std::env::var("ANIMAL_GO_CONFIG_DIR")
+        let config_dir = std::env::var("KITSUNE_CONFIG_DIR")
             .unwrap_or_else(|_| "configs".to_string());
 
         let filename = match self {
