@@ -11,7 +11,7 @@ import os
 import httpx
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 
@@ -262,13 +262,32 @@ async def websocket_proxy(ws: WebSocket):
 
 FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "..", "frontend")
 
+if not os.path.isdir(FRONTEND_DIR):
+    # Fallback for Railway where layout may differ
+    FRONTEND_DIR = os.path.join(os.getcwd(), "frontend")
+
 
 @app.get("/", response_class=HTMLResponse)
 async def entrance():
     """Serve the entrance page at root."""
-    with open(os.path.join(FRONTEND_DIR, "entrance.html")) as f:
+    path = os.path.join(FRONTEND_DIR, "entrance.html")
+    if not os.path.exists(path):
+        return HTMLResponse("<h1>Veiled Court</h1><p>Frontend not found</p>", status_code=500)
+    with open(path) as f:
         return f.read()
 
 
-# All other static files (index.html, game.html, css/, js/, assets/)
-app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
+# Static files for css/, js/, assets/, and other HTML pages
+app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
+
+
+@app.get("/{path:path}")
+async def serve_frontend(path: str):
+    """Serve frontend files (index.html, game.html, etc.)."""
+    file_path = os.path.join(FRONTEND_DIR, path)
+    if os.path.isfile(file_path):
+        import mimetypes
+        content_type = mimetypes.guess_type(file_path)[0] or "application/octet-stream"
+        with open(file_path, "rb") as f:
+            return Response(content=f.read(), media_type=content_type)
+    return JSONResponse({"error": "not found"}, status_code=404)
