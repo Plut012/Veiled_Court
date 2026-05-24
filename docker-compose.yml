@@ -2,7 +2,7 @@ services:
   kitsune:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.runpod
     container_name: kitsune-prod
     ports:
       - "3000:3000"

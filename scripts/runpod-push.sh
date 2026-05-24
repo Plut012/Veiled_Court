@@ -24,7 +24,7 @@ echo "  ✓ authenticated"
 
 # Build
 echo "  → building image..."
-docker build -t "$IMAGE" -f Dockerfile .
+docker build -t "$IMAGE" -f Dockerfile.runpod .
 
 echo "  ✓ image built"
 echo ""
