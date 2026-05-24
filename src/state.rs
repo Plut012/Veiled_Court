@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicI64, Ordering};
 use tokio::sync::Mutex;
 
 use crate::game::{Game, Color};
@@ -24,12 +25,25 @@ pub struct SessionData {
 pub struct AppState {
     /// Active game sessions (session_id -> SessionData)
     pub sessions: Arc<Mutex<HashMap<SessionId, SessionData>>>,
+    /// Unix timestamp of last WebSocket activity (for idle detection)
+    pub last_activity: AtomicI64,
 }
 
 impl AppState {
     pub fn new() -> Self {
+        let now = chrono::Utc::now().timestamp();
         Self {
             sessions: Arc::new(Mutex::new(HashMap::new())),
+            last_activity: AtomicI64::new(now),
         }
+    }
+
+    pub fn touch(&self) {
+        let now = chrono::Utc::now().timestamp();
+        self.last_activity.store(now, Ordering::Relaxed);
+    }
+
+    pub fn last_activity_ts(&self) -> i64 {
+        self.last_activity.load(Ordering::Relaxed)
     }
 }

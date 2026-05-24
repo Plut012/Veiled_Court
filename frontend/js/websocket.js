@@ -1,4 +1,4 @@
-// WebSocket client for Spirit Animals Go
+// WebSocket client for Veiled Court
 // Handles all server communication
 
 class GameClient {

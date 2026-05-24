@@ -1,4 +1,4 @@
-# Spirit Animals Go - Development Dockerfile
+# Veiled Court - Development Dockerfile
 # No GPU required, uses mock KataGo
 
 FROM rust:latest
@@ -29,8 +29,8 @@ EXPOSE 3000
 
 # Environment variables
 ENV KATAGO_BINARY=/app/scripts/mock_katago.sh
-ENV ANIMAL_GO_CONFIG_DIR=/app/configs-dev
+ENV KITSUNE_CONFIG_DIR=/app/configs-dev
 ENV RUST_LOG=debug
 
 # Run the application
-CMD ["./target/release/animal_go"]
+CMD ["./target/release/kitsune"]

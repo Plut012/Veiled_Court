@@ -1,4 +1,4 @@
-# Visual Direction — Spirit Animal Character Brief
+# Visual Direction — Character Brief
 
 ## Style Foundation
 

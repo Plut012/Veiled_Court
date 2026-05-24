@@ -1,8 +1,11 @@
 use axum::{
     Router,
     routing::get,
+    extract::State,
+    response::Json,
 };
 use tower_http::services::ServeDir;
+use serde_json::json;
 use std::{net::SocketAddr, sync::Arc};
 
 mod game;
@@ -13,15 +16,30 @@ mod ws;
 
 use state::AppState;
 
+async fn health() -> &'static str {
+    "ok"
+}
+
+async fn activity(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
+    let ts = state.last_activity_ts();
+    let now = chrono::Utc::now().timestamp();
+    Json(json!({
+        "last_activity": ts,
+        "idle_seconds": now - ts
+    }))
+}
+
 #[tokio::main]
 async fn main() {
-    println!("Spirit Animals Go - Starting server...");
+    println!("Veiled Court — starting server...");
 
     // Initialize shared state
     let state = Arc::new(AppState::new());
 
     let app = Router::new()
         .route("/ws", get(ws::handler))
+        .route("/health", get(health))
+        .route("/activity", get(activity))
         .nest_service("/", ServeDir::new("frontend"))
         .with_state(state);
 

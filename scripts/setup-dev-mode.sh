@@ -7,7 +7,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
-echo "=== Setting up Dev Mode for Spirit Animals Go ==="
+echo "=== Setting up Dev Mode for Veiled Court ==="
 echo "Target: Quadro P2000 (4GB VRAM)"
 echo ""
 

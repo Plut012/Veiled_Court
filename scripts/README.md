@@ -61,13 +61,13 @@ Quick reference for development workflows.
 
 ```bash
 # Use dev configs
-export ANIMAL_GO_CONFIG_DIR="configs-dev"
+export KITSUNE_CONFIG_DIR="configs-dev"
 
 # Use production configs (default)
-export ANIMAL_GO_CONFIG_DIR="configs"
+export KITSUNE_CONFIG_DIR="configs"
 
 # Run with specific config dir
-ANIMAL_GO_CONFIG_DIR="configs-dev" cargo run
+KITSUNE_CONFIG_DIR="configs-dev" cargo run
 ```
 
 ## Development Workflow
@@ -87,7 +87,7 @@ cd frontend/dist
 ### Backend Development
 ```bash
 # Dev mode uses debug build (faster compilation)
-ANIMAL_GO_CONFIG_DIR="configs-dev" cargo run
+KITSUNE_CONFIG_DIR="configs-dev" cargo run
 
 # Watch mode (requires cargo-watch)
 cargo watch -x run
@@ -105,7 +105,7 @@ done
 ## File Structure
 
 ```
-animal_go/
+kitsune/
 ├── configs/           # Production configs (slow, accurate)
 ├── configs-dev/       # Dev configs (fast, good enough)
 ├── scripts/

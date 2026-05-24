@@ -1,4 +1,4 @@
-# Spirit Animals Go - Production Dockerfile
+# Veiled Court - Production Dockerfile
 # CUDA-enabled for NVIDIA GPU support
 
 FROM nvidia/cuda:12.1.0-cudnn8-runtime-ubuntu22.04
@@ -39,9 +39,9 @@ COPY configs-dev/ ./configs-dev/
 COPY frontend/ ./frontend/
 COPY scripts/ ./scripts/
 
-# Copy neural networks (must be pre-downloaded on host)
-# Run ./scripts/download_nets.sh on desktop before building
-COPY nets/ /app/nets/
+# Copy neural networks into image
+COPY assets/katago/kata1-b28c512nbt.bin.gz /app/models/
+COPY assets/katago/b18c384nbt-humanv0.bin.gz /app/models/
 
 # Build Rust application (release mode)
 RUN cargo build --release
@@ -49,19 +49,12 @@ RUN cargo build --release
 # Expose port
 EXPOSE 3000
 
-# Create assets/katago/ symlinks so hardcoded paths in code and configs resolve
-RUN mkdir -p /app/assets/katago && \
-    ln -sf /usr/local/bin/katago /app/assets/katago/katago && \
-    for f in /app/nets/*; do ln -sf "$f" /app/assets/katago/"$(basename "$f")"; done && \
-    ln -sf /app/nets/kata1-b28c512nbt.bin.gz /app/assets/katago/kata1-b28c512nbt.gz
-
-# Environment variables (can be overridden)
+# Environment variables
 ENV KATAGO_BINARY=/usr/local/bin/katago
-ENV KATAGO_MODEL=/app/nets/kata1-b28c512nbt.bin.gz
-ENV KATAGO_HUMAN_MODEL=/app/nets/b18c384nbt-humanv0.bin.gz
-ENV KATAGO_NETS_PATH=/app/nets
-ENV ANIMAL_GO_CONFIG_DIR=/app/configs
+ENV KATAGO_MODEL=/app/models/kata1-b28c512nbt.bin.gz
+ENV KATAGO_HUMAN_MODEL=/app/models/b18c384nbt-humanv0.bin.gz
+ENV KITSUNE_CONFIG_DIR=/app/configs
 ENV RUST_LOG=info
 
 # Run the application
-CMD ["./target/release/animal_go"]
+CMD ["./target/release/kitsune"]

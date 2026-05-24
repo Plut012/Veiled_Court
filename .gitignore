@@ -2,9 +2,11 @@
 /target
 Cargo.lock
 
-# Neural networks (large files - download separately)
+# Neural networks and KataGo binary (large files - download separately)
 nets/*.bin.gz
 nets/*.gz
+assets/katago/*.bin.gz
+assets/katago/katago
 
 # Logs
 logs/
@@ -13,9 +15,16 @@ logs/
 # Environment files
 .env
 .env.local
+.runpod.env
+.runpod-pod-id
 
 # Docker volumes
 volumes/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
 
 # IDE
 .vscode/

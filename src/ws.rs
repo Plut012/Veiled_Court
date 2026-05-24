@@ -72,6 +72,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
 
     // Handle incoming messages
     while let Some(Ok(msg)) = receiver.next().await {
+        state.touch();
         if let Message::Text(text) = msg {
             let responses = handle_message(&state, &text, &mut sender).await;
 

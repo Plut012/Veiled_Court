@@ -1,17 +1,17 @@
 version: '3.8'
 
 services:
-  animal-go:
+  kitsune:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: animal-go-prod
+    container_name: kitsune-prod
     ports:
       - "3000:3000"
     environment:
       - KATAGO_BINARY=/usr/local/bin/katago
       - KATAGO_NETS_PATH=/app/nets
-      - ANIMAL_GO_CONFIG_DIR=/app/configs
+      - KITSUNE_CONFIG_DIR=/app/configs
       - RUST_LOG=info
       - ENV=production
     deploy:
