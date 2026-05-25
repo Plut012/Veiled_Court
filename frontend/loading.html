@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>The Court</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/themes.css">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: var(--bg, #0E0B1A);
+      color: var(--text, #D4C4A0);
+      font-family: 'Cormorant Garamond', serif;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    /* Progress bar — thin line across top */
+    #progress {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 2px;
+      width: 0%;
+      background: var(--accent, #D4C4A0);
+      opacity: 0.6;
+      transition: width 0.8s ease-out;
+    }
+
+    .message {
+      text-align: center;
+      opacity: 0;
+      animation: emerge 1s ease-out 0.3s forwards;
+    }
+
+    .spirit-name {
+      font-size: clamp(1.5rem, 4vw, 2.5rem);
+      font-weight: 400;
+      letter-spacing: 0.12em;
+      margin-bottom: 1.5rem;
+    }
+
+    .status {
+      font-size: 0.95rem;
+      font-style: italic;
+      opacity: 0.5;
+      animation: breathe 3s ease-in-out infinite;
+    }
+
+    @keyframes emerge {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes breathe {
+      0%, 100% { opacity: 0.35; }
+      50% { opacity: 0.7; }
+    }
+  </style>
+</head>
+<body>
+  <div id="progress"></div>
+
+  <div class="message">
+    <div class="spirit-name" id="spirit-name"></div>
+    <div class="status" id="status-text">waking…</div>
+  </div>
+
+  <script>
+    const spirit = sessionStorage.getItem('selectedSpirit');
+    const theme = sessionStorage.getItem('selectedTheme');
+
+    // Apply spirit theme
+    if (theme) document.body.classList.add(theme);
+
+    // Show spirit name
+    const names = {
+      crane: 'Tsuru', eagle: 'Garuda', lion: 'Sekhmet',
+      praying_mantis: 'Cǎotáng', spider: 'Anansi', crow: 'Morrígan',
+      jaguar: 'Balam', dragon: 'Ryūjin', mantis_shrimp: 'Zhìyǎn',
+    };
+    document.getElementById('spirit-name').textContent = names[spirit] || '';
+
+    // Progress bar and status
+    const bar = document.getElementById('progress');
+    const statusEl = document.getElementById('status-text');
+    const phrases = ['waking…', 'stirring…', 'the board warms…', 'almost here…'];
+    let progress = 5;
+    let phraseIdx = 0;
+
+    // Animate progress bar forward slowly
+    bar.style.width = progress + '%';
+
+    const tick = setInterval(() => {
+      if (progress < 85) {
+        progress += Math.random() * 8 + 2;
+        bar.style.width = Math.min(progress, 85) + '%';
+      }
+      phraseIdx = (phraseIdx + 1) % phrases.length;
+      statusEl.textContent = phrases[phraseIdx];
+    }, 4000);
+
+    // Poll for pod readiness
+    const poll = setInterval(() => {
+      fetch('/status').then(r => r.json()).then(data => {
+        if (data.ready && data.url) {
+          clearInterval(poll);
+          clearInterval(tick);
+          bar.style.width = '100%';
+          statusEl.textContent = 'entering…';
+          setTimeout(() => {
+            window.location.href = data.url + '/game.html';
+          }, 500);
+        }
+      }).catch(() => {});
+    }, 2500);
+
+    // Fallback: if no coordinator, try direct after timeout
+    setTimeout(() => {
+      if (!document.hidden) {
+        fetch('/status').catch(() => {
+          window.location.href = '/game.html';
+        });
+      }
+    }, 180000); // 3 min max
+  </script>
+</body>
+</html>

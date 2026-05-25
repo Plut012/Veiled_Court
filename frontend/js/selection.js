@@ -149,40 +149,18 @@ function startGame() {
   const boardSize = parseInt(activeSize ? activeSize.dataset.size : '19');
   const playerColor = activeColor ? activeColor.dataset.color : 'black';
 
-  // Store selections for the game page
+  // Store selections
   sessionStorage.setItem('selectedSpirit', selectedSpirit);
   sessionStorage.setItem('selectedTheme', selectedTheme);
   sessionStorage.setItem('playerColor', playerColor);
   sessionStorage.setItem('boardSize', boardSize);
 
   if (podUrl) {
+    // Pod already ready — go straight to game
     window.location.href = podUrl + '/game.html';
   } else {
-    // Pod not ready yet — transform the button into a waiting state
-    const btn = document.getElementById('start-game-btn');
-    btn.disabled = true;
-    btn.classList.add('summoning');
-    btn.textContent = 'The spirits stir…';
-
-    const phrases = [
-      'The spirits stir…',
-      'A presence gathers…',
-      'The board warms…',
-      'Almost here…',
-    ];
-    let phraseIdx = 0;
-
-    const waitPoll = setInterval(() => {
-      fetch('/status').then(r => r.json()).then(data => {
-        if (data.ready && data.url) {
-          clearInterval(waitPoll);
-          window.location.href = data.url + '/game.html';
-        } else {
-          phraseIdx = (phraseIdx + 1) % phrases.length;
-          btn.textContent = phrases[phraseIdx];
-        }
-      }).catch(() => {});
-    }, 4000);
+    // Pod still loading — go to loading screen which polls and redirects
+    window.location.href = '/loading.html';
   }
 }
 
