@@ -7,11 +7,14 @@ let podReady = false;
 
 // Summon the GPU pod as soon as the selection page loads.
 // The pod boots while the player browses spirits.
+let podUrl = null;
+
 fetch('/summon', { method: 'POST' })
   .then(r => r.json())
   .then(data => {
-    if (data.status === 'ready') {
+    if (data.status === 'ready' && data.url) {
       podReady = true;
+      podUrl = data.url;
     } else {
       pollStatus();
     }
@@ -24,8 +27,9 @@ fetch('/summon', { method: 'POST' })
 function pollStatus() {
   const poll = setInterval(() => {
     fetch('/status').then(r => r.json()).then(data => {
-      if (data.ready) {
+      if (data.ready && data.url) {
         podReady = true;
+        podUrl = data.url;
         clearInterval(poll);
       }
     }).catch(() => {});
@@ -145,13 +149,19 @@ function startGame() {
   const boardSize = parseInt(activeSize ? activeSize.dataset.size : '19');
   const playerColor = activeColor ? activeColor.dataset.color : 'black';
 
-  // Store selections and navigate immediately — game.html handles the connection
+  // Store selections for the game page
   sessionStorage.setItem('selectedSpirit', selectedSpirit);
   sessionStorage.setItem('selectedTheme', selectedTheme);
   sessionStorage.setItem('playerColor', playerColor);
   sessionStorage.setItem('boardSize', boardSize);
 
-  window.location.href = '/game.html';
+  if (podUrl) {
+    // Redirect to the game pod directly — it serves game.html and handles WebSocket
+    window.location.href = podUrl + '/game.html';
+  } else {
+    // No coordinator or pod not ready — try local game server
+    window.location.href = '/game.html';
+  }
 }
 
 // Load theme script for hover previews
