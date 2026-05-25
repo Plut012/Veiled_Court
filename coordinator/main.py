@@ -109,14 +109,12 @@ async def idle_watchdog():
         if pod_state["status"] != "ready" or not pod_state["url"]:
             continue
 
-        # Check activity from the game server
-        try:
-            async with httpx.AsyncClient() as client:
-                resp = await client.get(f"{pod_state['url']}/activity", timeout=5)
-                data = resp.json()
-                idle_seconds = data.get("idle_seconds", 0)
-        except Exception:
-            idle_seconds = IDLE_TIMEOUT + 1  # can't reach → kill it
+        # Use coordinator's own activity tracking (updated on every proxied WS message)
+        last = pod_state.get("last_activity")
+        if last is None:
+            continue
+
+        idle_seconds = time.time() - last
 
         if idle_seconds >= IDLE_TIMEOUT:
             pod_id = pod_state["id"]
@@ -126,7 +124,7 @@ async def idle_watchdog():
             pod_state["last_activity"] = None
             if pod_id:
                 await terminate_pod(pod_id)
-                print(f"[watchdog] terminated idle pod {pod_id} ({idle_seconds}s idle)")
+                print(f"[watchdog] terminated idle pod {pod_id} ({idle_seconds:.0f}s idle)")
 
 
 # ── startup / shutdown ──
@@ -221,11 +219,12 @@ async def websocket_proxy(ws: WebSocket):
     # Connect to game server WebSocket
     pod_ws_url = pod_state["url"].replace("https://", "wss://") + "/ws"
     pod_state["last_activity"] = time.time()
+    print(f"[ws-proxy] connecting to {pod_ws_url}")
 
     try:
-        async with httpx.AsyncClient() as client:
-            import websockets
-            async with websockets.connect(pod_ws_url) as pod_ws:
+        import websockets
+        async with websockets.connect(pod_ws_url) as pod_ws:
+            print(f"[ws-proxy] connected to pod")
                 # Bridge traffic both directions
                 async def client_to_pod():
                     try:
