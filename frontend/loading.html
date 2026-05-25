@@ -75,9 +75,11 @@
   </div>
 
   <script>
-    const spirit = sessionStorage.getItem('selectedSpirit');
-    const theme = sessionStorage.getItem('selectedTheme');
-    const gameParams = sessionStorage.getItem('gameParams') || '';
+    // Game config comes in as URL params — forward them to the pod
+    const gameParams = window.location.search.slice(1); // strip leading ?
+    const urlParams = new URLSearchParams(window.location.search);
+    const spirit = urlParams.get('spirit');
+    const theme = urlParams.get('theme');
 
     // Apply spirit theme
     if (theme) document.body.classList.add(theme);

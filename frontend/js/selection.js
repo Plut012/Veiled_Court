@@ -166,9 +166,8 @@ function startGame() {
   if (podUrl) {
     window.location.href = podUrl + '/game.html?' + params;
   } else {
-    // Store params for loading page to pass along
-    sessionStorage.setItem('gameParams', params.toString());
-    window.location.href = '/loading.html';
+    // Pass params in URL so loading page can forward them to the pod
+    window.location.href = '/loading.html?' + params;
   }
 }
 

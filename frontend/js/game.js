@@ -78,6 +78,11 @@ document.addEventListener('DOMContentLoaded', () => {
       if (gameClient.ws && gameClient.ws.readyState === WebSocket.OPEN) {
         clearInterval(waitForOpen);
         clearTimeout(connectTimeout);
+        if (!selectedSpirit) {
+          // Missing config — go back to selection
+          window.location.href = '/';
+          return;
+        }
         gameClient.initGame(selectedSpirit, boardSize, playerColor);
       }
     }, 100);
