@@ -189,6 +189,18 @@ body:has(#selection-screen) {
   cursor: not-allowed;
 }
 
+#start-game-btn.summoning {
+  opacity: 1;
+  cursor: wait;
+  border-color: var(--accent, rgba(255,255,255,0.3));
+  animation: breathe 3s ease-in-out infinite;
+}
+
+@keyframes breathe {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
 /* Game Screen */
 #game-screen {
   display: flex;

@@ -156,11 +156,33 @@ function startGame() {
   sessionStorage.setItem('boardSize', boardSize);
 
   if (podUrl) {
-    // Redirect to the game pod directly — it serves game.html and handles WebSocket
     window.location.href = podUrl + '/game.html';
   } else {
-    // No coordinator or pod not ready — try local game server
-    window.location.href = '/game.html';
+    // Pod not ready yet — transform the button into a waiting state
+    const btn = document.getElementById('start-game-btn');
+    btn.disabled = true;
+    btn.classList.add('summoning');
+    btn.textContent = 'The spirits stir…';
+
+    const phrases = [
+      'The spirits stir…',
+      'A presence gathers…',
+      'The board warms…',
+      'Almost here…',
+    ];
+    let phraseIdx = 0;
+
+    const waitPoll = setInterval(() => {
+      fetch('/status').then(r => r.json()).then(data => {
+        if (data.ready && data.url) {
+          clearInterval(waitPoll);
+          window.location.href = data.url + '/game.html';
+        } else {
+          phraseIdx = (phraseIdx + 1) % phrases.length;
+          btn.textContent = phrases[phraseIdx];
+        }
+      }).catch(() => {});
+    }, 4000);
   }
 }
 
