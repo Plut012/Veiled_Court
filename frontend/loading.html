@@ -77,6 +77,7 @@
   <script>
     const spirit = sessionStorage.getItem('selectedSpirit');
     const theme = sessionStorage.getItem('selectedTheme');
+    const gameParams = sessionStorage.getItem('gameParams') || '';
 
     // Apply spirit theme
     if (theme) document.body.classList.add(theme);
@@ -117,7 +118,7 @@
           bar.style.width = '100%';
           statusEl.textContent = 'entering…';
           setTimeout(() => {
-            window.location.href = data.url + '/game.html';
+            window.location.href = data.url + '/game.html?' + gameParams;
           }, 500);
         }
       }).catch(() => {});

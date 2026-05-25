@@ -155,11 +155,19 @@ function startGame() {
   sessionStorage.setItem('playerColor', playerColor);
   sessionStorage.setItem('boardSize', boardSize);
 
+  // Encode game config as URL params (survives cross-domain redirect)
+  const params = new URLSearchParams({
+    spirit: selectedSpirit,
+    theme: selectedTheme,
+    color: playerColor,
+    size: boardSize,
+  });
+
   if (podUrl) {
-    // Pod already ready — go straight to game
-    window.location.href = podUrl + '/game.html';
+    window.location.href = podUrl + '/game.html?' + params;
   } else {
-    // Pod still loading — go to loading screen which polls and redirects
+    // Store params for loading page to pass along
+    sessionStorage.setItem('gameParams', params.toString());
     window.location.href = '/loading.html';
   }
 }

@@ -2,17 +2,16 @@
 // Handles board interactions, game controls, and connection lifecycle
 
 document.addEventListener('DOMContentLoaded', () => {
-  // Restore theme from session storage
-  const selectedSpirit = sessionStorage.getItem('selectedSpirit');
-  const selectedTheme = sessionStorage.getItem('selectedTheme');
+  // Read game config from URL params (cross-domain) or sessionStorage (local dev)
+  const params = new URLSearchParams(window.location.search);
+  const selectedSpirit = params.get('spirit') || sessionStorage.getItem('selectedSpirit');
+  const selectedTheme = params.get('theme') || sessionStorage.getItem('selectedTheme');
+  const playerColor = params.get('color') || sessionStorage.getItem('playerColor') || 'black';
+  const boardSize = parseInt(params.get('size') || sessionStorage.getItem('boardSize') || '19');
 
   if (selectedTheme) {
     document.body.className = selectedTheme;
   }
-
-  // Restore game context from session storage
-  const playerColor = sessionStorage.getItem('playerColor') || 'black';
-  const boardSize = parseInt(sessionStorage.getItem('boardSize')) || 19;
 
   // Apply to game client
   gameClient.playerColor = playerColor;
