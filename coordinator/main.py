@@ -65,7 +65,7 @@ async def start_pod() -> str:
                 minMemoryInGb: 8,
                 name: "kitsune-game",
                 imageName: "{DOCKER_IMAGE}",
-                ports: "3000/http",
+                ports: "3000/http,3000/tcp",
                 env: [{{ key: "RUST_LOG", value: "info" }}]
             }}) {{ id desiredStatus }}
         }}"""
@@ -104,6 +104,11 @@ async def idle_watchdog():
     while True:
         await asyncio.sleep(POLL_INTERVAL)
         if pod_state["status"] != "ready" or not pod_state["url"]:
+            continue
+
+        # Grace period: don't kill a pod in its first 5 minutes
+        summon_time = pod_state.get("last_summon") or 0
+        if time.time() - summon_time < 300:
             continue
 
         # Query the pod's own activity endpoint
