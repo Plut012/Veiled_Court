@@ -2,7 +2,7 @@
 Veiled Court — Coordinator
 
 Serves the frontend, manages RunPod GPU pods on demand.
-Once a pod is ready, redirects the player to it.
+Uses stop/resume for fast restarts instead of create/terminate.
 """
 
 import asyncio
@@ -20,19 +20,25 @@ load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 RUNPOD_API_KEY = os.environ["RUNPOD_API_KEY"]
 DOCKER_IMAGE = os.getenv("DOCKER_IMAGE", "ghcr.io/plut012/kitsune:latest")
-GPU_TYPES = os.getenv("RUNPOD_GPU_TYPES", "NVIDIA RTX 4000 Ada Generation,NVIDIA GeForce RTX 3090,NVIDIA RTX A4000,NVIDIA GeForce RTX 4070 Ti,NVIDIA RTX A5000").split(",")
-IDLE_TIMEOUT = int(os.getenv("IDLE_TIMEOUT", "600"))  # 10 minutes
-POLL_INTERVAL = 30  # seconds between idle checks
+GPU_TYPES = os.getenv("RUNPOD_GPU_TYPES",
+    "NVIDIA RTX 4000 Ada Generation,"
+    "NVIDIA GeForce RTX 3090,"
+    "NVIDIA RTX A4000,"
+    "NVIDIA GeForce RTX 4070 Ti,"
+    "NVIDIA RTX A5000"
+).split(",")
+IDLE_TIMEOUT = int(os.getenv("IDLE_TIMEOUT", "600"))  # 10 min
+POLL_INTERVAL = 30
 
 RUNPOD_API = "https://api.runpod.io/graphql"
 
 # ── state ──
 
 pod_state = {
-    "id": None,
-    "url": None,        # e.g. "https://xyz-3000.proxy.runpod.net"
+    "id": None,         # persisted pod ID (survives stop/resume)
+    "url": None,
     "status": "off",    # off | starting | ready
-    "last_summon": None,
+    "ready_at": None,   # when pod became ready (for grace period)
 }
 
 
@@ -49,8 +55,8 @@ async def runpod_gql(query: str) -> dict:
         return resp.json()
 
 
-async def start_pod() -> str:
-    """Start a new game pod. Tries multiple GPU types for availability."""
+async def create_pod() -> str:
+    """Create a new pod. Tries multiple GPU types."""
     last_error = "No GPU types configured"
     for gpu_type in GPU_TYPES:
         gpu_type = gpu_type.strip()
@@ -65,27 +71,55 @@ async def start_pod() -> str:
                 minMemoryInGb: 8,
                 name: "kitsune-game",
                 imageName: "{DOCKER_IMAGE}",
-                ports: "3000/http,3000/tcp",
+                ports: "3000/http",
                 env: [{{ key: "RUST_LOG", value: "info" }}]
             }}) {{ id desiredStatus }}
         }}"""
         result = await runpod_gql(query)
         if "errors" not in result:
             pod_id = result["data"]["podFindAndDeployOnDemand"]["id"]
-            print(f"[coordinator] started pod {pod_id} on {gpu_type}")
+            print(f"[coordinator] created pod {pod_id} on {gpu_type}")
             return pod_id
         last_error = result["errors"][0]["message"]
-        print(f"[coordinator] {gpu_type}: {last_error}, trying next...")
+        print(f"[coordinator] {gpu_type}: {last_error}")
     raise RuntimeError(last_error)
 
 
+async def resume_pod(pod_id: str) -> bool:
+    """Resume a stopped pod. Returns True if successful."""
+    result = await runpod_gql(
+        f'mutation {{ podResume(input: {{ podId: "{pod_id}", gpuCount: 1 }}) {{ id desiredStatus }} }}'
+    )
+    if "errors" in result:
+        print(f"[coordinator] resume failed: {result['errors'][0]['message']}")
+        return False
+    print(f"[coordinator] resuming pod {pod_id}")
+    return True
+
+
+async def stop_pod(pod_id: str):
+    """Stop a pod (preserves it for fast resume)."""
+    await runpod_gql(f'mutation {{ podStop(input: {{ podId: "{pod_id}" }}) {{ id desiredStatus }} }}')
+    print(f"[coordinator] stopped pod {pod_id}")
+
+
 async def terminate_pod(pod_id: str):
-    """Terminate a pod."""
+    """Terminate a pod permanently."""
     await runpod_gql(f'mutation {{ podTerminate(input: {{ podId: "{pod_id}" }}) }}')
+    print(f"[coordinator] terminated pod {pod_id}")
+
+
+async def get_pod_status(pod_id: str) -> str | None:
+    """Get pod's desired status. Returns None if pod doesn't exist."""
+    result = await runpod_gql(
+        f'{{ pod(input: {{ podId: "{pod_id}" }}) {{ desiredStatus }} }}'
+    )
+    pod = result.get("data", {}).get("pod")
+    return pod["desiredStatus"] if pod else None
 
 
 async def check_pod_health(pod_id: str) -> str | None:
-    """Check if pod is ready. Returns proxy URL if healthy, None otherwise."""
+    """Returns proxy URL if pod is healthy, None otherwise."""
     url = f"https://{pod_id}-3000.proxy.runpod.net"
     try:
         async with httpx.AsyncClient() as client:
@@ -97,37 +131,58 @@ async def check_pod_health(pod_id: str) -> str | None:
     return None
 
 
+# ── pod lifecycle ──
+
+async def ensure_pod_running() -> str:
+    """Get a running pod — resume if stopped, create if needed. Returns pod ID."""
+
+    # If we have a pod, try resuming it
+    if pod_state["id"]:
+        status = await get_pod_status(pod_state["id"])
+        if status == "RUNNING":
+            return pod_state["id"]
+        if status == "EXITED":
+            if await resume_pod(pod_state["id"]):
+                return pod_state["id"]
+            # Resume failed — pod's host is gone. Terminate and create fresh.
+            await terminate_pod(pod_state["id"])
+            pod_state["id"] = None
+
+    # Create a new pod
+    pod_id = await create_pod()
+    pod_state["id"] = pod_id
+    return pod_id
+
+
 # ── watchdog ──
 
 async def idle_watchdog():
-    """Kill pods that have been idle too long."""
+    """Stop (not terminate) pods that have been idle too long."""
     while True:
         await asyncio.sleep(POLL_INTERVAL)
         if pod_state["status"] != "ready" or not pod_state["url"]:
             continue
 
-        # Grace period: don't kill a pod in its first 5 minutes
-        summon_time = pod_state.get("last_summon") or 0
-        if time.time() - summon_time < 300:
+        # Grace period: don't touch a pod for 5 min after it became ready
+        ready_at = pod_state.get("ready_at") or 0
+        if time.time() - ready_at < 300:
             continue
 
-        # Query the pod's own activity endpoint
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.get(f"{pod_state['url']}/activity", timeout=5)
-                data = resp.json()
-                idle_seconds = data.get("idle_seconds", 0)
+                idle_seconds = resp.json().get("idle_seconds", 0)
         except Exception:
-            idle_seconds = IDLE_TIMEOUT + 1  # can't reach → kill it
+            idle_seconds = IDLE_TIMEOUT + 1
 
         if idle_seconds >= IDLE_TIMEOUT:
             pod_id = pod_state["id"]
-            pod_state["id"] = None
             pod_state["url"] = None
             pod_state["status"] = "off"
+            pod_state["ready_at"] = None
+            # Stop instead of terminate — preserves for fast resume
             if pod_id:
-                await terminate_pod(pod_id)
-                print(f"[watchdog] terminated idle pod {pod_id} ({idle_seconds:.0f}s idle)")
+                await stop_pod(pod_id)
 
 
 # ── startup / shutdown ──
@@ -138,9 +193,10 @@ async def lifespan(app: FastAPI):
     print("[coordinator] started, watchdog running")
     yield
     task.cancel()
-    if pod_state["id"]:
-        await terminate_pod(pod_state["id"])
-        print(f"[coordinator] terminated pod {pod_state['id']} on shutdown")
+    # Stop (not terminate) on shutdown — pod can be resumed next time
+    if pod_state["id"] and pod_state["status"] == "ready":
+        await stop_pod(pod_state["id"])
+        print(f"[coordinator] stopped pod {pod_state['id']} on shutdown")
 
 
 # ── app ──
@@ -150,49 +206,47 @@ app = FastAPI(lifespan=lifespan)
 
 @app.post("/summon")
 async def summon():
-    """Start a GPU pod. Called when player enters the court."""
-    if pod_state["status"] == "ready":
+    """Start or resume a GPU pod."""
+    if pod_state["status"] == "ready" and pod_state["url"]:
         return {"status": "ready", "url": pod_state["url"]}
 
     if pod_state["status"] == "starting":
-        return {"status": "starting", "pod_id": pod_state["id"]}
+        return {"status": "starting"}
+
+    pod_state["status"] = "starting"
 
     try:
-        pod_id = await start_pod()
+        pod_id = await ensure_pod_running()
     except RuntimeError as e:
+        pod_state["status"] = "off"
         return JSONResponse({"status": "error", "message": str(e)}, status_code=503)
 
-    pod_state["id"] = pod_id
-    pod_state["status"] = "starting"
-    pod_state["last_summon"] = time.time()
-
     asyncio.create_task(poll_pod_ready(pod_id))
-
-    return {"status": "starting", "pod_id": pod_id}
+    return {"status": "starting"}
 
 
 async def poll_pod_ready(pod_id: str):
-    """Poll until pod is healthy, then update state."""
-    for _ in range(120):  # 10 minutes max
+    """Poll until pod is healthy."""
+    for _ in range(120):  # 10 min max
         if pod_state["id"] != pod_id:
             return
         url = await check_pod_health(pod_id)
         if url:
             pod_state["url"] = url
             pod_state["status"] = "ready"
+            pod_state["ready_at"] = time.time()
             print(f"[coordinator] pod {pod_id} ready at {url}")
             return
         await asyncio.sleep(5)
 
-    print(f"[coordinator] pod {pod_id} failed to become healthy, terminating")
+    print(f"[coordinator] pod {pod_id} timed out waiting for health")
     pod_state["status"] = "off"
-    pod_state["id"] = None
-    await terminate_pod(pod_id)
+    await stop_pod(pod_id)
 
 
 @app.get("/status")
 async def status():
-    """Pod status for frontend polling. Returns pod URL when ready."""
+    """Pod status for frontend polling."""
     resp = {
         "status": pod_state["status"],
         "ready": pod_state["status"] == "ready",
@@ -205,14 +259,12 @@ async def status():
 # ── serve frontend ──
 
 FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "..", "frontend")
-
 if not os.path.isdir(FRONTEND_DIR):
     FRONTEND_DIR = os.path.join(os.getcwd(), "frontend")
 
 
 @app.get("/", response_class=HTMLResponse)
 async def entrance():
-    """Serve the entrance page at root."""
     path = os.path.join(FRONTEND_DIR, "entrance.html")
     if not os.path.exists(path):
         return HTMLResponse("<h1>Veiled Court</h1><p>Frontend not found</p>", status_code=500)
@@ -222,7 +274,6 @@ async def entrance():
 
 @app.get("/{path:path}")
 async def serve_frontend(path: str):
-    """Serve frontend files."""
     file_path = os.path.join(FRONTEND_DIR, path)
     if os.path.isfile(file_path):
         import mimetypes
