@@ -17,9 +17,9 @@ use crate::state::{AppState, PendingReview, SessionData, SessionId};
 #[serde(tag = "type", rename_all = "PascalCase")]
 enum ClientMessage {
     InitGame {
-        spirit: String,
-        board_size: usize,
-        player_color: String,
+        spirit: Option<String>,
+        board_size: Option<usize>,
+        player_color: Option<String>,
     },
     ResumeGame {
         session_id: String,
@@ -101,9 +101,11 @@ async fn handle_message(
     text: &str,
     sender: &mut futures::stream::SplitSink<WebSocket, Message>,
 ) -> Vec<ServerMessage> {
+    println!("[ws] received: {}", &text[..text.len().min(200)]);
     let client_msg: ClientMessage = match serde_json::from_str(text) {
         Ok(msg) => msg,
         Err(e) => {
+            println!("[ws] parse error: {} for input: {}", e, &text[..text.len().min(200)]);
             return vec![ServerMessage::Error {
                 message: format!("Invalid message: {}", e),
             }];
@@ -115,7 +117,13 @@ async fn handle_message(
             spirit,
             board_size,
             player_color,
-        } => vec![handle_init_game(state, spirit, board_size, player_color).await],
+        } => {
+            let spirit = spirit.unwrap_or_else(|| "dragon".to_string());
+            let board_size = board_size.unwrap_or(19);
+            let player_color = player_color.unwrap_or_else(|| "black".to_string());
+            println!("[ws] InitGame: spirit={}, size={}, color={}", spirit, board_size, player_color);
+            vec![handle_init_game(state, spirit, board_size, player_color).await]
+        }
 
         ClientMessage::ResumeGame { session_id } => {
             vec![handle_resume_game(state, session_id).await]
