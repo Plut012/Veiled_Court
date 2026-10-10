@@ -23,7 +23,18 @@ Play Go against nine spirits, each with a different philosophy and playing style
 - **Frontend:** Vanilla HTML/CSS/JS, canvas board renderer
 - **Deploy:** On-demand RunPod GPU behind a coordinator VPS
 
-## Development
+## Run locally (no GPU needed)
+
+One command — builds a CPU container (podman or docker), downloads nets on first run (~600MB), serves on port 3000:
+
+```bash
+./run-local.sh
+# http://localhost:3000
+```
+
+Uses KataGo's Eigen/AVX2 CPU build with the lightweight `configs-dev` visit counts (~3s/move). Options: `MOCK=1 ./run-local.sh` (instant random-move engine, no nets), `CONFIGS=prod ./run-local.sh` (full-strength search — slow on CPU).
+
+## Development (native)
 
 ```bash
 ./scripts/setup-dev-mode.sh   # one time

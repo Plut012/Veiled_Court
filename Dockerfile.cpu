@@ -1,0 +1,52 @@
+# Veiled Court - Local CPU Dockerfile
+# Same shape as Dockerfile.runpod but with KataGo's Eigen (CPU/AVX2) build.
+# Nets are NOT baked in — mount ./nets at /app/models (see run-local.sh).
+
+# --- Builder stage ---
+FROM rust:1.87-bookworm AS builder
+
+WORKDIR /build
+COPY Cargo.toml Cargo.lock* ./
+COPY src/ ./src/
+
+RUN cargo build --release
+
+# --- Runtime stage ---
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y \
+    wget \
+    unzip \
+    && rm -rf /var/lib/apt/lists/*
+
+# Download KataGo binary (Eigen AVX2 CPU version)
+# The release zip contains an AppImage; extract it so it runs without FUSE
+RUN wget -q https://github.com/lightvector/KataGo/releases/download/v1.16.4/katago-v1.16.4-eigenavx2-linux-x64.zip && \
+    unzip katago-*.zip && \
+    chmod +x katago && \
+    ./katago --appimage-extract && \
+    mv squashfs-root /opt/katago && \
+    ln -sf /opt/katago/AppRun /usr/local/bin/katago && \
+    rm -rf katago katago-*.zip *.cfg *.txt *.pem
+
+WORKDIR /app
+
+# Copy compiled binary from builder
+COPY --from=builder /build/target/release/kitsune ./kitsune
+
+# Copy static assets (configs, frontend, mock engine)
+COPY configs/ ./configs/
+COPY configs-dev/ ./configs-dev/
+COPY frontend/ ./frontend/
+COPY scripts/mock_katago.sh ./scripts/mock_katago.sh
+
+EXPOSE 3000
+
+# Environment variables (dev configs by default — CPU-friendly visit counts)
+ENV KATAGO_BINARY=/usr/local/bin/katago
+ENV KATAGO_MODEL=/app/models/kata1-b28c512nbt.bin.gz
+ENV KATAGO_HUMAN_MODEL=/app/models/b18c384nbt-humanv0.bin.gz
+ENV KITSUNE_CONFIG_DIR=/app/configs-dev
+ENV RUST_LOG=info
+
+CMD ["./kitsune"]

@@ -43,7 +43,9 @@ async fn main() {
         .nest_service("/", ServeDir::new("frontend"))
         .with_state(state);
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
+    // Bind dual-stack ([::] accepts IPv4 too on Linux) so localhost works over
+    // both v4 and v6 — rootless podman's pasta forwards ::1 into the container
+    let addr: SocketAddr = "[::]:3000".parse().unwrap();
     println!("Server running on http://localhost:3000");
     println!("WebSocket endpoint: ws://localhost:3000/ws");
 
