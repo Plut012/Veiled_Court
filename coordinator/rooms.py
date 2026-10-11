@@ -5,7 +5,8 @@ Anonymous two-player games relayed by the coordinator. No accounts, no GPU.
 The server only checks seat, turn order and bounds; both clients apply the
 shared JS rules (frontend/js/rules.js) to the move list.
 
-  POST /room            {size, client_id} → {code}; creator sits as black
+  POST /room            {size, client_id, color?} → {code}; creator sits as
+                        color (black by default), the friend takes the other
   GET  /room/{code}     the room page (404 page if the room is unknown)
   WS   /room/{code}/ws?cid=<client_id>
 """
@@ -87,10 +88,13 @@ async def create_room(request: Request):
         body = {}
     size = body.get("size", 19) if isinstance(body, dict) else 19
     client_id = body.get("client_id") if isinstance(body, dict) else None
+    color = body.get("color", "black") if isinstance(body, dict) else "black"
     if size not in SIZES:
         return JSONResponse({"error": "size must be 9, 13 or 19"}, status_code=400)
     if not isinstance(client_id, str) or not 0 < len(client_id) <= MAX_CLIENT_ID:
         return JSONResponse({"error": "client_id required"}, status_code=400)
+    if color not in ("black", "white"):
+        return JSONResponse({"error": "color must be black or white"}, status_code=400)
 
     _cleanup()
     if len(rooms) >= MAX_ROOMS:
@@ -102,7 +106,7 @@ async def create_room(request: Request):
     rooms[code] = {
         "size": size,
         "moves": [],
-        "seats": {"black": client_id, "white": None},
+        "seats": {"black": None, "white": None, color: client_id},
         "sockets": [],
         "result": None,
         "last_activity": time.time(),
@@ -145,17 +149,18 @@ async def room_ws(ws: WebSocket, code: str):
         await ws.close(code=4429)
         return
 
-    # Seat by client id: creator is black, first other client is white,
-    # everyone else watches. A reconnect with the same id gets the same seat.
+    # Seat by client id: the creator has their chosen seat, the first other
+    # client takes the empty one, everyone else watches. A reconnect with the
+    # same id gets the same seat.
     cid = ws.query_params.get("cid", "")[:MAX_CLIENT_ID]
     seats = room["seats"]
     if cid and cid == seats["black"]:
         color = "black"
     elif cid and cid == seats["white"]:
         color = "white"
-    elif cid and seats["white"] is None:
-        seats["white"] = cid
-        color = "white"
+    elif cid and None in seats.values():
+        color = "white" if seats["white"] is None else "black"
+        seats[color] = cid
     else:
         color = "spectator"
 

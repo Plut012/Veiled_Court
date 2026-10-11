@@ -30,34 +30,66 @@ function roomClientId() {
   return memoryClientId;
 }
 
-async function createRoom(size) {
+async function createRoom(size, color) {
   const res = await fetch('/room', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ size, client_id: roomClientId() }),
+    body: JSON.stringify({ size, color, client_id: roomClientId() }),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok || !data.code) throw new Error(data.error || 'the court is unreachable');
-  window.location.href = `/room/${data.code}`;
+  return data.code;
+}
+
+// Two stones joined by a curling thread — yours on the left, your friend's on
+// the right. Drawn in the same thin line as the title sconces (room.css).
+function threadMotif() {
+  return `
+    <svg class="thread-motif" viewBox="0 0 160 40" aria-hidden="true">
+      <defs>
+        <radialGradient id="stone-black" cx="35%" cy="30%" r="75%">
+          <stop offset="0" stop-color="#6a6a72"/><stop offset="0.55" stop-color="#1c1c22"/><stop offset="1" stop-color="#050507"/>
+        </radialGradient>
+        <radialGradient id="stone-white" cx="35%" cy="30%" r="75%">
+          <stop offset="0" stop-color="#ffffff"/><stop offset="0.55" stop-color="#e9e5db"/><stop offset="1" stop-color="#b9b2a2"/>
+        </radialGradient>
+      </defs>
+      <path class="thread" pathLength="1"
+        d="M26 20 C42 6 58 6 68 17 C74 24 84 26 87 19 C89 14 84 11.5 81.5 15 C79.5 18.5 84 22.5 90 18 C100 10 116 32 134 20"/>
+      <circle class="stone you" cx="16" cy="20" r="8"/>
+      <circle class="stone them" cx="144" cy="20" r="8"/>
+    </svg>`;
 }
 
 // --- Selection screen entry ---
 
+// Uses the board size and stone chosen above Begin.
 function initFriendEntry() {
-  const toggle = document.getElementById('friend-toggle');
-  const sizes = document.getElementById('friend-sizes');
+  const btn = document.getElementById('friend-thread');
   const error = document.getElementById('friend-error');
+  btn.insertAdjacentHTML('afterbegin', threadMotif());
 
-  toggle.addEventListener('click', () => {
-    sizes.hidden = !sizes.hidden;
-  });
+  const chosenColor = () => document.querySelector('.color-btn.selected')?.dataset.color || 'black';
+  const chosenSize = () => parseInt(document.querySelector('.size-btn.selected')?.dataset.size || '19');
 
-  sizes.querySelectorAll('.friend-size').forEach(btn => {
-    btn.addEventListener('click', () => {
-      error.textContent = '';
-      createRoom(parseInt(btn.dataset.size)).catch(e => {
-        error.textContent = e.message;
-      });
+  // Your stone follows the stone picker
+  const sync = () => { btn.dataset.you = chosenColor(); };
+  document.querySelectorAll('.color-btn').forEach(b => b.addEventListener('click', sync));
+  sync();
+
+  let sending = false;
+  btn.addEventListener('click', () => {
+    if (sending) return;
+    sending = true;
+    error.textContent = '';
+    btn.classList.add('sent');  // the thread reaches across, then we go
+    const pause = new Promise(r => setTimeout(r, 1100));
+    Promise.all([createRoom(chosenSize(), chosenColor()), pause]).then(([code]) => {
+      window.location.href = `/room/${code}`;
+    }).catch(e => {
+      sending = false;
+      btn.classList.remove('sent');
+      error.textContent = e.message;
     });
   });
 }
@@ -74,6 +106,8 @@ function initRoomPage() {
   const gameScreen = document.getElementById('game-screen');
   const shareBtn = document.getElementById('share-link');
   const shareHint = document.getElementById('share-hint');
+  const waitThread = document.getElementById('wait-thread');
+  waitThread.innerHTML = threadMotif();
   const statusEl = document.getElementById('room-status');
   const controls = document.getElementById('local-controls');
   const passBtn = document.getElementById('pass-btn');
@@ -209,7 +243,9 @@ function initRoomPage() {
   function render() {
     if (missing || !size) return;
 
-    const waiting = you === 'black' && !seated.white && !result;
+    const seat = you === 'black' || you === 'white';
+    const waiting = seat && !seated[you === 'black' ? 'white' : 'black'] && !result;
+    if (seat) waitThread.dataset.you = you;
     waitPanel.hidden = !waiting;
     gameScreen.hidden = waiting;
     document.body.className = waiting ? '' : 'theme-local';

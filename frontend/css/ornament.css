@@ -1,0 +1,78 @@
+/* Art nouveau line work (ornament.js) — the same thin line as the title sconces,
+   used only where something is chosen. */
+
+/* ── corner tendrils around the chosen spirit ── */
+
+.spirit-card {
+  position: relative;
+}
+
+.flourishes {
+  position: absolute;
+  inset: -12px;
+  pointer-events: none;
+}
+
+.flourish {
+  position: absolute;
+  width: 54px;
+  height: 54px;
+  overflow: visible;
+  fill: none;
+  stroke: var(--accent, #D4C4A0);
+  stroke-width: 1;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.flourish:nth-child(1) { top: 0; left: 0; }
+.flourish:nth-child(2) { top: 0; right: 0; transform: scaleX(-1); }
+.flourish:nth-child(3) { bottom: 0; left: 0; transform: scaleY(-1); }
+.flourish:nth-child(4) { bottom: 0; right: 0; transform: scale(-1, -1); }
+
+/* undrawn: the line is all gap */
+.flourish path {
+  stroke-dasharray: 1 1;
+  stroke-dashoffset: 1;
+  opacity: 0;
+  transition: stroke-dashoffset 0.6s ease-in, opacity 0.6s ease-in;
+}
+
+/* chosen: drawn in as if by a pen — the sweep, then the curl, then the leaf */
+.spirit-card.selected .flourish path {
+  stroke-dashoffset: 0;
+  opacity: 0.85;
+  transition: stroke-dashoffset 1.4s cubic-bezier(0.45, 0, 0.2, 1), opacity 0.4s ease-out;
+}
+.spirit-card.selected .flourish path:nth-child(2) { transition-delay: 0.7s; }
+.spirit-card.selected .flourish path:nth-child(3) { transition-delay: 1.1s; }
+
+/* ── divider above Begin ── */
+
+#begin-divider {
+  display: block;
+  width: 240px;
+  max-width: 70%;
+  height: 18px;
+  margin: 0 auto 22px;
+  overflow: visible;
+  fill: none;
+  stroke: rgba(212, 196, 160, 0.3);
+  stroke-width: 0.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: stroke 1.2s ease;
+}
+
+/* takes the chosen spirit's colour, faintly */
+body:has(.spirit-card.selected) #begin-divider {
+  stroke: color-mix(in srgb, var(--accent, #D4C4A0) 55%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flourish path,
+  .spirit-card.selected .flourish path {
+    transition: opacity 0.4s ease;
+    transition-delay: 0s !important;
+  }
+}

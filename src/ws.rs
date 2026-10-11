@@ -79,8 +79,10 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
 
     // Handle incoming messages
     while let Some(Ok(msg)) = receiver.next().await {
-        state.touch();
+        // Only game messages count as activity — protocol pings from proxies
+        // must not keep an untouched tab's pod alive past the idle timeout
         if let Message::Text(text) = msg {
+            state.touch();
             let responses = handle_message(&state, &text, &mut sender).await;
 
             // Send all responses

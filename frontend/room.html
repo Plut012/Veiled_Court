@@ -13,10 +13,12 @@
   <link rel="stylesheet" href="/css/themes.css">
   <link rel="stylesheet" href="/css/board.css">
   <link rel="stylesheet" href="/css/room.css">
+  <link rel="stylesheet" href="/css/presence.css">
 </head>
 <body>
-  <!-- Shown to black until a friend takes the white seat -->
+  <!-- Shown to the creator until a friend takes the other seat -->
   <div id="room-wait" class="room-panel" hidden>
+    <div id="wait-thread"></div>
     <p class="room-line">Send this to your friend</p>
     <button id="share-link"></button>
     <p id="share-hint">tap to copy</p>
@@ -47,5 +49,6 @@
   <script src="/js/board.js"></script>
   <script src="/js/rules.js"></script>
   <script src="/js/room.js"></script>
+  <script src="/js/presence.js"></script>
 </body>
 </html>

@@ -1,0 +1,174 @@
+/* Presence ember (presence.js) — top-right light while the GPU pod runs */
+
+#presence {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 10px);
+  right: calc(env(safe-area-inset-right, 0px) + 10px);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-style: italic;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+#presence[hidden],
+#presence [hidden] {
+  display: none;
+}
+
+/* The ember: 44px hit area, small light inside */
+#presence-ember {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#presence-ember::after {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent, #D4C4A0);
+  box-shadow: 0 0 6px var(--accent, #D4C4A0), 0 0 14px color-mix(in srgb, var(--accent, #D4C4A0) 40%, transparent);
+  transition: opacity 1.2s ease, filter 1.2s ease, transform 1.2s ease;
+}
+
+#presence[data-state="ready"] #presence-ember::after {
+  animation: presence-breathe 4.5s ease-in-out infinite;
+}
+
+#presence[data-state="starting"] #presence-ember::after {
+  opacity: 0.5;
+  animation: presence-flicker 1.6s steps(1, end) infinite;
+}
+
+/* Letting it rest: the light goes out like a blown-out candle */
+#presence[data-state="resting"] #presence-ember::after,
+#presence[data-state="off"] #presence-ember::after {
+  opacity: 0;
+  filter: blur(3px);
+  transform: translateY(-6px) scale(1.6);
+}
+
+#presence-ember:focus-visible {
+  outline: 1px solid rgba(255, 255, 255, 0.3);
+  outline-offset: -8px;
+  border-radius: 50%;
+}
+
+/* The veil: a few quiet lines under the ember */
+#presence-veil {
+  margin-top: 2px;
+  padding: 12px 16px;
+  min-width: 13rem;
+  text-align: right;
+  background: color-mix(in srgb, var(--board-primary, #0E0B1A) 88%, transparent);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  animation: presence-emerge 0.4s ease-out both;
+}
+
+#presence-veil p {
+  margin: 0;
+  font-size: 17px;
+  letter-spacing: 0.06em;
+}
+
+#presence-time {
+  margin-top: 2px !important;
+  font-size: 15px !important;
+  opacity: 0.55;
+}
+
+#presence-time:empty {
+  display: none;
+}
+
+#presence-rest {
+  margin-top: 10px;
+  padding: 0;
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.5);
+  font: inherit;
+  font-size: 16px;
+  letter-spacing: 0.08em;
+  border-bottom: 1px solid currentColor;
+  cursor: pointer;
+  transition: color 0.3s ease;
+}
+
+#presence-rest:hover,
+#presence-rest:focus-visible,
+#presence-rest.confirm {
+  color: rgba(255, 255, 255, 0.9);
+  outline: none;
+}
+
+#presence-word {
+  margin-top: 10px;
+}
+
+#presence-word input {
+  width: 11rem;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 0;
+  outline: none;
+  color: rgba(255, 255, 255, 0.85);
+  font: inherit;
+  font-size: 16px; /* ≥16px so mobile browsers don't zoom */
+  letter-spacing: 0.2em;
+  text-align: right;
+  padding: 2px 0;
+}
+
+#presence-word input::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+  letter-spacing: 0.08em;
+}
+
+#presence-word.shiver {
+  animation: presence-shiver 0.45s ease-in-out;
+}
+
+@keyframes presence-breathe {
+  0%, 100% { opacity: 0.45; transform: scale(0.85); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes presence-flicker {
+  0% { opacity: 0.15; }
+  30% { opacity: 0.55; }
+  45% { opacity: 0.25; }
+  70% { opacity: 0.6; }
+}
+
+@keyframes presence-emerge {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes presence-shiver {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-4px); }
+  40% { transform: translateX(3px); }
+  60% { transform: translateX(-2px); }
+  80% { transform: translateX(1px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #presence *, #presence *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
+}

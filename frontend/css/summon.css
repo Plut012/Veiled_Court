@@ -1,43 +1,210 @@
-/* Summon line — sits under the title on the selection screen (summon.js) */
+/* Summon flames — two sconces flanking the title (summon.js)
+   a bare wick: the court sleeps · flickering: waking · burning: the spirit is here
+   smoke: the flames were put out and the pod is still stopping */
 
 #summon {
-  text-align: center;
-  min-height: 2rem;
-  margin: -14px 0 22px;
-  font-family: 'Cormorant Garamond', Georgia, serif;
-  font-style: italic;
-  font-size: 17px;
-  letter-spacing: 0.08em;
-  color: rgba(255, 255, 255, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  margin-bottom: 30px;
 }
 
-#summon[hidden],
-#summon [hidden] {
+#selection-screen #summon h1 {
+  margin-bottom: 0;
+}
+
+#summon-word[hidden] {
   display: none;
 }
 
-#summon-call {
+/* ── the sconces: thin art nouveau line work ── */
+
+.sconce {
+  position: relative;
+  flex: none;
+  width: 60px;
+  height: 120px;
+}
+
+.sconce.mirror {
+  transform: scaleX(-1);
+}
+
+.sconce-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  fill: none;
+  stroke: rgba(212, 196, 160, 0.38);
+  stroke-width: 0.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: stroke 1.6s ease;
+}
+
+.sconce-art .inner {
+  stroke: rgba(212, 196, 160, 0.2);
+}
+
+/* the line work warms when the flames burn */
+#summon[data-state="lit"] .sconce-art {
+  stroke: rgba(240, 205, 150, 0.55);
+}
+
+@media (max-width: 768px) {
+  #summon { gap: 10px; margin-bottom: 20px; }
+  .sconce { zoom: 0.6; }
+}
+
+/* ── the flame (wick base sits in the sconce's dish) ── */
+
+.summon-flame {
+  position: absolute;
+  left: -2px;
+  top: 14px;
+  width: 64px;
+  height: 96px;
+  padding: 0;
   background: none;
   border: none;
-  color: inherit;
-  font: inherit;
-  letter-spacing: inherit;
   cursor: pointer;
-  transition: color 0.3s ease;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation; /* no double-tap zoom */
 }
 
-#summon-call span {
-  border-bottom: 1px solid currentColor;
+/* no coordinator (run-local.sh): the sconces stay as ornament, without a wick */
+#summon:not(.present) .summon-flame {
+  visibility: hidden;
 }
 
-#summon-call:hover,
-#summon-call:focus-visible {
-  color: rgba(255, 255, 255, 0.85);
-  outline: none;
+.summon-flame:focus-visible {
+  outline: 1px solid rgba(255, 255, 255, 0.25);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.summon-flame span {
+  position: absolute;
+  left: 50%;
+  pointer-events: none;
+}
+
+.candle-wick {
+  bottom: 22px;
+  width: 2px;
+  height: 10px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: linear-gradient(rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0.1));
+  transition: background 0.6s ease;
+}
+
+.candle-flame {
+  bottom: 27px;
+  width: 14px;
+  height: 32px;
+  margin-left: -7px;
+  border-radius: 50% 50% 50% 50% / 62% 62% 38% 38%;
+  background: radial-gradient(ellipse at 50% 78%,
+    #fffdf4 0%, #ffeeb0 22%, #f7b44f 52%, rgba(232, 108, 38, 0.55) 70%, rgba(232, 108, 38, 0) 82%);
+  transform-origin: 50% 92%;
+  opacity: 0;
+  transform: scale(0.15);
+  filter: blur(0.4px);
+  transition: opacity 0.5s ease, transform 0.5s ease;
+}
+
+/* the blue heart at the base of the flame */
+.candle-flame::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 3px;
+  width: 6px;
+  height: 7px;
+  margin-left: -3px;
+  border-radius: 50%;
+  background: rgba(110, 150, 255, 0.45);
+  filter: blur(1px);
+}
+
+.candle-halo {
+  bottom: -38px;
+  width: 190px;
+  height: 190px;
+  margin-left: -95px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 42%, rgba(255, 196, 120, 0.2), rgba(255, 170, 90, 0.06) 40%, transparent 66%);
+  opacity: 0;
+  transition: opacity 1.6s ease;
+}
+
+.candle-smoke {
+  bottom: 33px;
+  width: 0;
+  height: 0;
+}
+
+.candle-smoke i {
+  position: absolute;
+  left: -4px;
+  bottom: 0;
+  width: 8px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(205, 205, 215, 0.4);
+  filter: blur(3px);
+  opacity: 0;
+}
+
+/* ── states ── */
+
+#summon:not([data-state="waking"]):not([data-state="lit"]) .summon-flame:hover .candle-wick {
+  background: linear-gradient(rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.2));
+}
+
+/* waking: the flame catches, unsure of itself */
+#summon[data-state="waking"] .candle-flame {
+  opacity: 0.85;
+  transform: scale(0.7);
+  animation: flame-catch 1.3s linear infinite;
+}
+#summon[data-state="waking"] .candle-halo {
+  opacity: 0.45;
+  animation: halo-catch 1.3s linear infinite;
+}
+
+/* lit: the spirit is here — the flame burns easily */
+#summon[data-state="lit"] .candle-flame {
+  opacity: 1;
+  transform: scale(1);
+  animation: flame-sway 4s ease-in-out infinite;
+}
+#summon[data-state="lit"] .candle-halo {
+  opacity: 1;
+  animation: halo-breathe 5s ease-in-out infinite;
+}
+
+/* smoke: the flame is out, the spirit is still leaving (still billing) */
+#summon[data-state="smoking"] .candle-smoke i {
+  animation: smoke-rise 3.2s ease-out infinite;
+}
+#summon[data-state="smoking"] .candle-smoke i:nth-child(2) { animation-delay: 1.05s; }
+#summon[data-state="smoking"] .candle-smoke i:nth-child(3) { animation-delay: 2.1s; }
+#summon[data-state="smoking"] .candle-wick {
+  background: linear-gradient(#c8562a, rgba(255, 255, 255, 0.1) 60%); /* a last ember on the wick */
+}
+
+#summon-word {
+  margin: -14px 0 22px;
+  text-align: center;
 }
 
 #summon-word input {
-  width: 12rem;
+  width: 112px;
   background: transparent;
   border: none;
   border-bottom: 1px solid rgba(255, 255, 255, 0.45);
@@ -45,7 +212,7 @@
   outline: none;
   color: rgba(255, 255, 255, 0.85);
   font: inherit;
-  font-size: 17px; /* ≥16px so mobile browsers don't zoom */
+  font-size: 16px; /* ≥16px so mobile browsers don't zoom */
   letter-spacing: 0.2em;
   text-align: center;
   padding: 2px 0;
@@ -55,47 +222,55 @@
 
 #summon-word input::placeholder {
   color: rgba(255, 255, 255, 0.35);
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
 }
 
 #summon-word.shiver {
   animation: summon-shiver 0.45s ease-in-out;
 }
 
-#summon-note {
-  margin: 0;
-  animation: summon-emerge 0.6s ease-out both;
+/* ── motion ── */
+
+@keyframes flame-catch {
+  0%   { opacity: 0.2;  transform: scale(0.45, 0.5) rotate(-4deg); }
+  12%  { opacity: 0.85; transform: scale(0.75, 0.85) rotate(3deg); }
+  20%  { opacity: 0.4;  transform: scale(0.55, 0.6) rotate(-2deg); }
+  38%  { opacity: 0.9;  transform: scale(0.8, 0.95) rotate(4deg); }
+  46%  { opacity: 0.3;  transform: scale(0.5, 0.55) rotate(-5deg); }
+  64%  { opacity: 0.75; transform: scale(0.7, 0.8) rotate(1deg); }
+  78%  { opacity: 0.25; transform: scale(0.45, 0.5) rotate(3deg); }
+  90%  { opacity: 0.8;  transform: scale(0.75, 0.9) rotate(-3deg); }
+  100% { opacity: 0.2;  transform: scale(0.45, 0.5) rotate(-4deg); }
 }
 
-#summon[data-state="waking"] #summon-note {
-  animation: summon-emerge 0.6s ease-out both, summon-breathe 3s ease-in-out 0.6s infinite;
+@keyframes halo-catch {
+  0%, 20%, 46%, 78%, 100% { opacity: 0.2; }
+  12%, 38%, 64%, 90% { opacity: 0.55; }
 }
 
-/* Awake: a small steady light before the words */
-#summon[data-state="awake"] #summon-note {
-  color: rgba(255, 255, 255, 0.75);
+@keyframes flame-sway {
+  0%, 100% { transform: scale(1, 1) rotate(-1.5deg); }
+  25%      { transform: scale(0.97, 1.05) rotate(1deg); }
+  50%      { transform: scale(1.02, 0.98) rotate(2deg); }
+  75%      { transform: scale(0.98, 1.04) rotate(-0.5deg); }
 }
 
-#summon[data-state="awake"] #summon-note::before {
-  content: '';
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  margin: 0 10px 2px 0;
-  border-radius: 50%;
-  background: var(--accent, #D4C4A0);
-  box-shadow: 0 0 8px var(--accent, #D4C4A0);
-  vertical-align: middle;
+@keyframes halo-breathe {
+  0%, 100% { opacity: 0.8; }
+  50%      { opacity: 1; }
+}
+
+@keyframes smoke-rise {
+  0%   { opacity: 0;    transform: translate(0, 0) scale(0.5, 0.6); }
+  15%  { opacity: 0.55; }
+  45%  { transform: translate(6px, -38px) scale(1.1, 1.3) rotate(8deg); }
+  75%  { opacity: 0.2; }
+  100% { opacity: 0;    transform: translate(-5px, -92px) scale(2, 2.2) rotate(-6deg); }
 }
 
 @keyframes summon-emerge {
   from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes summon-breathe {
-  0%, 100% { opacity: 0.45; }
-  50% { opacity: 1; }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes summon-shiver {
@@ -106,10 +281,12 @@
   80% { transform: translateX(1px); }
 }
 
-@media (max-width: 600px) {
-  #summon { margin: -6px 0 16px; }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  #summon * { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
+  #summon *, #summon *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+  /* keep the states readable without motion */
+  #summon[data-state="waking"] .candle-flame { opacity: 0.6; transform: scale(0.65); }
+  #summon[data-state="smoking"] .candle-smoke i:first-child { opacity: 0.4; transform: translateY(-20px); }
 }

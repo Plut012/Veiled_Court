@@ -1,4 +1,4 @@
-const CACHE = 'court-v4';
+const CACHE = 'court-v9';
 const ASSETS = [
   '/',
   '/index.html',
@@ -19,6 +19,10 @@ const ASSETS = [
   '/js/room.js',
   '/css/summon.css',
   '/js/summon.js',
+  '/css/presence.css',
+  '/css/ornament.css',
+  '/js/ornament.js',
+  '/js/presence.js',
   '/js/game.js',
   '/js/websocket.js',
   '/js/theme.js',

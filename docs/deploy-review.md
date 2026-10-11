@@ -61,7 +61,8 @@ Browser ──▶ Coordinator (FastAPI)          ──RunPod API──▶  Game
 Browser ──HTTPS──▶ cloudflared tunnel ──▶ Coordinator (your machine; later any small host)
                                           • serves the ONLY copy of the frontend
                                           • POST /summon (password) → resume/create pod
-                                          • GET /status → pod lookup + health
+                                          • GET /status → pod lookup + health + rests_in
+                                          • POST /rest (password) → stop the pod now
                                           • /room/<code> WebSocket → friend games (no GPU)
    │
    └── bot games: page opens WS directly ──▶ RunPod GPU pod (Rust + KataGo)
@@ -91,6 +92,21 @@ Principles:
   `cloudflared tunnel --url http://localhost:8000` (free, HTTPS, no account;
   URL changes per run). Move the same coordinator to a small host or a named
   tunnel + domain when that gets annoying — no code changes.
+- **Summon flames (selection screen).** No words: the title sits between two
+  thin-line art nouveau sconces, each holding a wick. Touch either flame:
+  summon (the word input appears only if not remembered); both flames
+  flicker while the pod wakes, then burn easily once ready. Touch twice: they
+  go out (`POST /rest`) and smoke rises until `/status` says the pod is off —
+  i.e. until nothing is billed. Without a coordinator the sconces stay as
+  ornament, with no wick.
+- **Presence ember + end button.** A small light in the top-right corner of
+  the game, review and room pages while the pod runs (flickers while waking, breathes when
+  awake, absent when nothing is billed). Tap it: "the spirit is here · rests
+  on its own in ~N min", and *let it rest* (tap twice to confirm) stops the
+  pod immediately via `POST /rest`.
+- **Idle timeout:** the pod stops itself 10 min after the last game message
+  (only real game messages count, not protocol pings). The coordinator also
+  stops a pod that never becomes healthy within 10 min of a summon.
 - **Summon screen:** pick a spirit → the screen takes its palette → one line,
   *"speak the word"*, single underline input. Correct: the line dissolves into
   the breathing status text + thin progress bar while the pod wakes. Wrong:

@@ -15,19 +15,53 @@
   <link rel="stylesheet" href="css/board.css">
   <link rel="stylesheet" href="css/room.css">
   <link rel="stylesheet" href="css/summon.css">
+  <link rel="stylesheet" href="css/ornament.css">
 </head>
 <body>
   <div id="selection-screen">
-    <h1>The Court</h1>
-
-    <!-- Summon (summon.js): wake the court before choosing. Hidden without a coordinator. -->
-    <div id="summon" hidden>
-      <button id="summon-call">the court sleeps · <span>summon</span></button>
-      <form id="summon-word" hidden autocomplete="off">
-        <input type="password" placeholder="speak the word" aria-label="the word" enterkeyhint="go">
-      </form>
-      <p id="summon-note" hidden></p>
-    </div>
+    <!-- Title between two sconces (summon.js): touch a flame to wake the court,
+         twice to let it rest. Flames only appear when a coordinator answers. -->
+    <header id="summon">
+      <svg width="0" height="0" aria-hidden="true" style="position:absolute">
+        <symbol id="sconce-art" viewBox="0 0 60 120">
+          <!-- arch: an ogee rising to a finial, waisting in, curling out at the foot -->
+          <path d="M30 7 C26 13 12 17 11 34 C10 52 17 66 21 80 C24 91 19 99 13 103 C8 106 8 112 13 113 C17 114 19 109 16 107"/>
+          <path d="M30 7 C34 13 48 17 49 34 C50 52 43 66 39 80 C36 91 41 99 47 103 C52 106 52 112 47 113 C43 114 41 109 44 107"/>
+          <!-- inner arch, fainter -->
+          <path class="inner" d="M30 15 C26 21 17 25 17 39 C17 54 22 66 25 79"/>
+          <path class="inner" d="M30 15 C34 21 43 25 43 39 C43 54 38 66 35 79"/>
+          <!-- finial -->
+          <path d="M30 7 C28.5 5 28.5 2.5 30 1.5 C31.5 2.5 31.5 5 30 7"/>
+          <!-- dish and stem -->
+          <path d="M21 88 C25 92.5 35 92.5 39 88"/>
+          <path d="M30 91.5 C29 96 31 100 30 106 C29.5 110 30.5 114 30 118"/>
+          <!-- an outward tendril (mirrored on the right sconce) -->
+          <path class="inner" d="M11 34 C5 31 2 23 6 18 C8.5 15 12.5 16.5 11.5 19.5 C10.8 21.5 8.5 21 9 19.5"/>
+        </symbol>
+      </svg>
+      <div class="sconce">
+        <svg class="sconce-art" aria-hidden="true"><use href="#sconce-art"/></svg>
+        <button class="summon-flame" aria-label="summon the spirit">
+          <span class="candle-halo"></span>
+          <span class="candle-smoke"><i></i><i></i><i></i></span>
+          <span class="candle-flame"></span>
+          <span class="candle-wick"></span>
+        </button>
+      </div>
+      <h1>The Court</h1>
+      <div class="sconce mirror">
+        <svg class="sconce-art" aria-hidden="true"><use href="#sconce-art"/></svg>
+        <button class="summon-flame" aria-label="summon the spirit">
+          <span class="candle-halo"></span>
+          <span class="candle-smoke"><i></i><i></i><i></i></span>
+          <span class="candle-flame"></span>
+          <span class="candle-wick"></span>
+        </button>
+      </div>
+    </header>
+    <form id="summon-word" hidden autocomplete="off">
+      <input type="password" placeholder="speak the word" aria-label="the word" enterkeyhint="go">
+    </form>
 
     <div id="spirit-grid">
       <div class="spirit-card" data-spirit="crane" data-theme="theme-crane">
@@ -93,21 +127,26 @@
       </div>
 
       <div id="color-picker">
-        <button class="color-btn selected" data-color="black" title="Black">●</button>
-        <button class="color-btn" data-color="white" title="White">○</button>
+        <button class="color-btn selected" data-color="black" title="play black" aria-label="play black"><span class="stone black"></span></button>
+        <button class="color-btn" data-color="white" title="play white" aria-label="play white"><span class="stone white"></span></button>
       </div>
     </div>
 
+    <!-- a whiplash line with the sconces' finial at its heart -->
+    <svg id="begin-divider" viewBox="0 0 240 18" aria-hidden="true">
+      <path d="M120 3 C118.4 5.5 118.4 8.5 120 10.5 C121.6 8.5 121.6 5.5 120 3"/>
+      <path d="M113 8 C100 8 94 12.5 80 11.5 C60 10 40 5 18 7 C11 7.6 8 11 10.5 13 C12.5 14.5 15 12.5 13.5 11"/>
+      <path d="M127 8 C140 8 146 12.5 160 11.5 C180 10 200 5 222 7 C229 7.6 232 11 229.5 13 C227.5 14.5 225 12.5 226.5 11"/>
+    </svg>
+
     <button id="start-game-btn" disabled>Begin</button>
 
-    <!-- Friend rooms (room.js): pick a size, get a link to share -->
+    <!-- Friend rooms (room.js): your stone, a thread, your friend's stone.
+         Uses the size and stone chosen above; leads to a link to share. -->
     <div id="friend-entry">
-      <button id="friend-toggle">or play a friend</button>
-      <div id="friend-sizes" hidden>
-        <button class="friend-size" data-size="9">9</button>
-        <button class="friend-size" data-size="13">13</button>
-        <button class="friend-size" data-size="19">19</button>
-      </div>
+      <button id="friend-thread" aria-label="play a friend">
+        <span class="friend-words">play a friend</span>
+      </button>
       <p id="friend-error"></p>
     </div>
   </div>
@@ -115,6 +154,7 @@
   <script src="js/selection.js"></script>
   <script src="js/room.js"></script>
   <script src="js/summon.js"></script>
+  <script src="js/ornament.js"></script>
   <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
 </body>
 </html>

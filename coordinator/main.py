@@ -74,15 +74,20 @@ async def runpod_gql(query: str) -> dict:
     return result
 
 
-async def find_pod() -> dict | None:
-    """Look up our pod by name. Prefers a RUNNING one if several exist."""
+async def find_pods() -> list[dict]:
+    """All of our (non-terminated) pods, by name."""
     result = await runpod_gql("query { myself { pods { id name desiredStatus } } }")
     if "errors" in result:
         raise RuntimeError(result["errors"][0]["message"])
-    pods = [
+    return [
         p for p in ((result.get("data") or {}).get("myself") or {}).get("pods") or []
         if p["name"] == POD_NAME and p["desiredStatus"] != "TERMINATED"
     ]
+
+
+async def find_pod() -> dict | None:
+    """Look up our pod by name. Prefers a RUNNING one if several exist."""
+    pods = await find_pods()
     if not pods:
         return None
     pods.sort(key=lambda p: p["desiredStatus"] != "RUNNING")
@@ -138,10 +143,14 @@ async def resume_pod(pod_id: str) -> bool:
     return True
 
 
-async def stop_pod(pod_id: str):
-    """Stop a pod (preserves it for fast resume)."""
-    await runpod_gql(f'mutation {{ podStop(input: {{ podId: {gql_str(pod_id)} }}) {{ id desiredStatus }} }}')
+async def stop_pod(pod_id: str) -> bool:
+    """Stop a pod (preserves it for fast resume). Returns True if RunPod accepted."""
+    result = await runpod_gql(f'mutation {{ podStop(input: {{ podId: {gql_str(pod_id)} }}) {{ id desiredStatus }} }}')
+    if "errors" in result:
+        print(f"[coordinator] stop failed for {pod_id}: {result['errors'][0]['message']}")
+        return False
     print(f"[coordinator] stopped pod {pod_id}")
+    return True
 
 
 async def terminate_pod(pod_id: str):
@@ -163,15 +172,32 @@ async def is_healthy(pod_id: str) -> bool:
         return False
 
 
+async def idle_seconds(pod_id: str) -> int | None:
+    """Seconds since the pod's last game activity, or None if it isn't answering."""
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(f"{pod_url(pod_id)}/activity", timeout=5)
+            if resp.status_code == 200:
+                return int(resp.json().get("idle_seconds", 0))
+    except (httpx.HTTPError, ValueError):
+        pass
+    return None
+
+
 # ── pod state ──
 
 async def pod_status() -> dict:
-    """Current pod state, from RunPod + a health check: {status, ready, url?}."""
+    """Current pod state: {status, ready, url?, rests_in?}.
+
+    rests_in = seconds until the pod stops itself for idleness (approximate:
+    the pod checks every 30s)."""
     pod = await find_pod()
     if not pod or pod["desiredStatus"] != "RUNNING":
         return {"status": "off", "ready": False}
-    if await is_healthy(pod["id"]):
-        return {"status": "ready", "ready": True, "url": pod_url(pod["id"])}
+    idle = await idle_seconds(pod["id"])
+    if idle is not None:
+        return {"status": "ready", "ready": True, "url": pod_url(pod["id"]),
+                "rests_in": max(0, int(IDLE_TIMEOUT) - idle)}
     return {"status": "starting", "ready": False}
 
 
@@ -239,18 +265,25 @@ app = FastAPI()
 summon_lock = asyncio.Lock()
 
 
-@app.post("/summon")
-async def summon(request: Request):
-    """Wake the GPU pod. Requires the court password."""
+async def check_password(request: Request) -> JSONResponse | None:
+    """None if the body carries the court password, else a 401 response."""
     try:
         body = await request.json()
         password = str(body.get("password", "")) if isinstance(body, dict) else ""
     except ValueError:
         password = ""
-    if not hmac.compare_digest(password.encode(), COURT_PASSWORD.encode()):
-        if password:
-            await asyncio.sleep(1)
-        return JSONResponse({"status": "error", "message": "wrong password"}, status_code=401)
+    if hmac.compare_digest(password.encode(), COURT_PASSWORD.encode()):
+        return None
+    if password:
+        await asyncio.sleep(1)
+    return JSONResponse({"status": "error", "message": "wrong password"}, status_code=401)
+
+
+@app.post("/summon")
+async def summon(request: Request):
+    """Wake the GPU pod. Requires the court password."""
+    if denied := await check_password(request):
+        return denied
 
     async with summon_lock:
         try:
@@ -260,6 +293,24 @@ async def summon(request: Request):
             return JSONResponse({"status": "error", "message": str(e)}, status_code=503)
         _status_cache["value"] = None
     return result
+
+
+@app.post("/rest")
+async def rest(request: Request):
+    """Stop the GPU pod now (ends any game in progress). Requires the court password."""
+    if denied := await check_password(request):
+        return denied
+
+    async with summon_lock:
+        _status_cache["value"] = None
+        try:
+            running = [p for p in await find_pods() if p["desiredStatus"] == "RUNNING"]
+        except RuntimeError as e:
+            return JSONResponse({"status": "error", "message": str(e)}, status_code=503)
+        stopped = [await stop_pod(p["id"]) for p in running]
+        if not all(stopped):
+            return JSONResponse({"status": "error", "message": "RunPod did not accept the stop"}, status_code=502)
+    return {"status": "off", "ready": False}
 
 
 @app.get("/status")
