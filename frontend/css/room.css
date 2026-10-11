@@ -1,0 +1,150 @@
+/* Friend rooms: entry point on the selection screen + the room page */
+
+/* Selection screen entry: a quiet line under Begin */
+#friend-entry {
+  margin-top: 28px;
+  text-align: center;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+}
+
+#friend-toggle,
+.room-link {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.45);
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 17px;
+  font-style: italic;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  text-decoration: none;
+  transition: color 0.3s ease;
+}
+
+#friend-toggle:hover,
+.room-link:hover {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+#friend-sizes {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 12px;
+}
+
+#friend-sizes[hidden] {
+  display: none;
+}
+
+.friend-size {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.6);
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 15px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  padding: 0;
+}
+
+.friend-size:hover {
+  border-color: var(--accent);
+  color: rgba(255, 255, 255, 0.95);
+}
+
+#friend-error {
+  margin-top: 10px;
+  font-style: italic;
+  font-size: 15px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* Room page panels (waiting for friend, missing room) */
+.room-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: 24px 16px;
+  text-align: center;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+}
+
+.room-panel[hidden] {
+  display: none;
+}
+
+.room-line {
+  font-style: italic;
+  font-size: 22px;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+#share-link {
+  max-width: 100%;
+  padding: 14px 28px;
+  background: transparent;
+  border: 1px solid var(--accent);
+  border-radius: 24px;
+  color: rgba(255, 255, 255, 0.92);
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 22px;
+  letter-spacing: 0.04em;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+  box-shadow: 0 0 16px color-mix(in srgb, var(--accent) 25%, transparent);
+  animation: breathe 3s ease-in-out infinite;
+}
+
+#share-hint {
+  font-style: italic;
+  font-size: 15px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* In-game status line under the board */
+#room-status {
+  min-height: 24px;
+  margin: 4px 0 8px;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-style: italic;
+  font-size: 17px;
+  color: var(--accent);
+  opacity: 0.8;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+#game-screen[hidden] {
+  display: none;
+}
+
+#local-controls #resign-btn {
+  padding: 6px 20px;
+  background: transparent;
+  color: var(--accent);
+  opacity: 0.3;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 14px;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+#local-controls #resign-btn:hover,
+#local-controls #resign-btn.confirm {
+  opacity: 0.7;
+}
+
+#local-controls[hidden] {
+  display: none;
+}

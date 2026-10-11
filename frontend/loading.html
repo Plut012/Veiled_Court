@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#0E0B1A">
   <title>The Court</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -12,31 +13,38 @@
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
-      background: var(--bg, #0E0B1A);
-      color: var(--text, #D4C4A0);
-      font-family: 'Cormorant Garamond', serif;
+      background: var(--board-primary);
+      color: var(--accent);
+      font-family: 'Cormorant Garamond', Georgia, serif;
       height: 100dvh;
       display: flex;
-      flex-direction: column;
       align-items: center;
       justify-content: center;
+      padding: 0 16px;
       overflow: hidden;
+      transition: opacity 0.6s ease;
     }
 
-    /* Progress bar — thin line across top */
+    body.leaving { opacity: 0; }
+
+    /* Progress bar — thin line across top, only while the pod wakes */
     #progress {
       position: fixed;
       top: 0;
       left: 0;
       height: 2px;
       width: 0%;
-      background: var(--accent, #D4C4A0);
-      opacity: 0.6;
-      transition: width 0.8s ease-out;
+      background: var(--accent);
+      opacity: 0;
+      transition: width 0.8s ease-out, opacity 0.8s ease;
     }
+
+    #progress.on { opacity: 0.6; }
 
     .message {
       text-align: center;
+      width: 100%;
+      max-width: 22rem;
       opacity: 0;
       animation: emerge 1s ease-out 0.3s forwards;
     }
@@ -48,12 +56,58 @@
       margin-bottom: 1.5rem;
     }
 
+    /* The stage holds one line at a time: the word, the status, or a farewell */
+    .stage { min-height: 2.5rem; }
+
+    .line { display: none; }
+    .line.shown { display: block; animation: emerge 0.8s ease-out both; }
+
+    #word input {
+      width: 100%;
+      max-width: 14rem;
+      background: transparent;
+      border: none;
+      border-bottom: 1px solid var(--accent);
+      border-radius: 0;
+      outline: none;
+      color: var(--accent);
+      font-family: inherit;
+      font-size: 1.1rem; /* ≥16px so mobile browsers don't zoom */
+      font-style: italic;
+      letter-spacing: 0.2em;
+      text-align: center;
+      padding: 0.25rem 0;
+      opacity: 0.7;
+      transition: opacity 0.4s ease;
+      caret-color: var(--accent);
+    }
+
+    #word input::placeholder { color: var(--accent); opacity: 0.45; letter-spacing: 0.08em; }
+    #word input:focus { opacity: 1; }
+
+    #word.shiver { animation: shiver 0.45s ease-in-out; }
+    #word.dissolve { display: block; animation: dissolve 0.7s ease-in forwards; }
+
     .status {
       font-size: 0.95rem;
       font-style: italic;
       opacity: 0.5;
-      animation: breathe 3s ease-in-out infinite;
     }
+
+    #status.shown { animation: emerge 0.8s ease-out both, breathe 3s ease-in-out 0.8s infinite; }
+
+    #farewell a {
+      display: inline-block;
+      margin-top: 1rem;
+      color: var(--accent);
+      font-size: 0.95rem;
+      letter-spacing: 0.12em;
+      text-decoration: none;
+      border-bottom: 1px solid currentColor;
+      opacity: 0.55;
+    }
+
+    #farewell a:hover, #farewell a:focus { opacity: 1; }
 
     @keyframes emerge {
       from { opacity: 0; transform: translateY(8px); }
@@ -64,6 +118,22 @@
       0%, 100% { opacity: 0.35; }
       50% { opacity: 0.7; }
     }
+
+    @keyframes shiver {
+      0%, 100% { transform: translateX(0); }
+      20% { transform: translateX(-4px); }
+      40% { transform: translateX(3px); }
+      60% { transform: translateX(-2px); }
+      80% { transform: translateX(1px); }
+    }
+
+    @keyframes dissolve {
+      to { opacity: 0; filter: blur(4px); letter-spacing: 0.4em; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
+    }
   </style>
 </head>
 <body>
@@ -71,69 +141,188 @@
 
   <div class="message">
     <div class="spirit-name" id="spirit-name"></div>
-    <div class="status" id="status-text">waking…</div>
+    <div class="stage">
+      <form id="word" class="line" autocomplete="off">
+        <input id="word-input" type="password" placeholder="speak the word"
+               aria-label="speak the word" enterkeyhint="go"
+               autocapitalize="off" autocorrect="off" spellcheck="false">
+      </form>
+      <div id="status" class="line status">waking…</div>
+      <div id="farewell" class="line status">
+        <div id="farewell-text"></div>
+        <a href="/index.html">return to the court</a>
+      </div>
+    </div>
   </div>
 
   <script>
-    // Game config comes in as URL params — forward them to the pod
-    const gameParams = window.location.search.slice(1); // strip leading ?
-    const urlParams = new URLSearchParams(window.location.search);
-    const spirit = urlParams.get('spirit');
-    const theme = urlParams.get('theme');
-
-    // Apply spirit theme
+    // Game config comes in as URL params — forwarded to the game page
+    const params = new URLSearchParams(window.location.search);
+    const theme = params.get('theme');
     if (theme) document.body.classList.add(theme);
 
-    // Show spirit name
     const names = {
       crane: 'Tsuru', eagle: 'Garuda', lion: 'Sekhmet',
       praying_mantis: 'Cǎotáng', spider: 'Anansi', crow: 'Morrígan',
       jaguar: 'Balam', dragon: 'Ryūjin', mantis_shrimp: 'Zhìyǎn',
     };
-    document.getElementById('spirit-name').textContent = names[spirit] || '';
+    document.getElementById('spirit-name').textContent = names[params.get('spirit')] || '';
 
-    // Progress bar and status
+    const word = document.getElementById('word');
+    const input = document.getElementById('word-input');
+    const statusEl = document.getElementById('status');
     const bar = document.getElementById('progress');
-    const statusEl = document.getElementById('status-text');
-    const phrases = ['waking…', 'stirring…', 'the board warms…', 'almost here…'];
-    let progress = 5;
-    let phraseIdx = 0;
 
-    // Animate progress bar forward slowly
-    bar.style.width = progress + '%';
+    const WORD_KEY = 'courtWord';
+    const GIVE_UP_MS = 10 * 60 * 1000;
 
-    const tick = setInterval(() => {
-      if (progress < 85) {
-        progress += Math.random() * 8 + 2;
-        bar.style.width = Math.min(progress, 85) + '%';
+    function storedWord() {
+      try { return localStorage.getItem(WORD_KEY) || ''; } catch (e) { return ''; }
+    }
+    function rememberWord(w) {
+      try { w ? localStorage.setItem(WORD_KEY, w) : localStorage.removeItem(WORD_KEY); } catch (e) {}
+    }
+
+    function show(id) {
+      document.querySelectorAll('.line').forEach(el => el.classList.toggle('shown', el.id === id));
+    }
+
+    // POST /summon. Outcomes: ok (with data), wrong, busy (no GPU), local, error.
+    // "local" = no coordinator (run-local.sh: the Rust server serves this page, /summon 404/405).
+    async function summon(password) {
+      let resp;
+      try {
+        resp = await fetch('/summon', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password }),
+        });
+      } catch (e) {
+        return { kind: 'local' };
       }
-      phraseIdx = (phraseIdx + 1) % phrases.length;
-      statusEl.textContent = phrases[phraseIdx];
-    }, 4000);
+      if (resp.status === 401) return { kind: 'wrong' };
+      if (resp.status === 503) return { kind: 'busy' };
+      if (resp.status === 404 || resp.status === 405) return { kind: 'local' };
+      if (!resp.ok) return { kind: 'error' };
+      try {
+        return { kind: 'ok', data: await resp.json() };
+      } catch (e) {
+        return { kind: 'local' };
+      }
+    }
 
-    // Poll for pod readiness
-    const poll = setInterval(() => {
-      fetch('/status').then(r => r.json()).then(data => {
-        if (data.ready && data.url) {
+    function enter(podUrl) {
+      const next = new URLSearchParams(params);
+      if (podUrl) next.set('pod', podUrl);
+      bar.style.width = '100%';
+      document.body.classList.add('leaving');
+      setTimeout(() => { window.location.href = '/game.html?' + next; }, 600);
+    }
+
+    function farewell(text) {
+      bar.classList.remove('on');
+      document.getElementById('farewell-text').textContent = text;
+      show('farewell');
+    }
+
+    function handle(result, password) {
+      if (result.kind === 'ok' || result.kind === 'busy') rememberWord(password);
+      switch (result.kind) {
+        case 'local':
+          return enter(null);
+        case 'ok':
+          if (result.data.ready && result.data.url) return enter(result.data.url);
+          return wake();
+        case 'busy':
+          return farewell('no spirit can be roused just now — try again soon');
+        default:
+          return farewell('the court is silent — try again soon');
+      }
+    }
+
+    // ── the word ──
+
+    function askForWord() {
+      show('word');
+      input.focus();
+    }
+
+    let speaking = false;
+    word.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const w = input.value.trim();
+      if (!w || speaking) return;
+      speaking = true;
+      const result = await summon(w);
+      speaking = false;
+
+      if (result.kind === 'wrong') {
+        input.value = '';
+        word.classList.remove('shiver');
+        void word.offsetWidth; // restart the animation
+        word.classList.add('shiver');
+        input.focus();
+        return;
+      }
+
+      input.blur();
+      word.classList.add('dissolve');
+      setTimeout(() => {
+        word.classList.remove('dissolve');
+        handle(result, w);
+      }, 700);
+    });
+
+    // ── waking ──
+
+    function wake() {
+      show('status');
+      bar.classList.add('on');
+
+      const phrases = ['waking…', 'stirring…', 'the board warms…', 'almost here…'];
+      let progress = 5;
+      let phraseIdx = 0;
+      bar.style.width = progress + '%';
+
+      const tick = setInterval(() => {
+        if (progress < 85) {
+          progress += Math.random() * 8 + 2;
+          bar.style.width = Math.min(progress, 85) + '%';
+        }
+        phraseIdx = (phraseIdx + 1) % phrases.length;
+        statusEl.textContent = phrases[phraseIdx];
+      }, 4000);
+
+      const started = Date.now();
+      const poll = setInterval(() => {
+        if (Date.now() - started > GIVE_UP_MS) {
           clearInterval(poll);
           clearInterval(tick);
-          bar.style.width = '100%';
-          statusEl.textContent = 'entering…';
-          setTimeout(() => {
-            window.location.href = data.url + '/game.html?' + gameParams;
-          }, 500);
+          farewell('the spirit did not wake — try again later');
+          return;
         }
-      }).catch(() => {});
-    }, 2500);
+        fetch('/status').then(r => r.json()).then(data => {
+          if (data.ready && data.url) {
+            clearInterval(poll);
+            clearInterval(tick);
+            statusEl.textContent = 'entering…';
+            enter(data.url);
+          }
+        }).catch(() => {});
+      }, 2500);
+    }
 
-    // Fallback: if no coordinator, try direct after timeout
-    setTimeout(() => {
-      if (!document.hidden) {
-        fetch('/status').catch(() => {
-          window.location.href = '/game.html';
-        });
+    // ── begin: try the remembered word (or none — that also detects run-local) ──
+
+    (async () => {
+      const remembered = storedWord();
+      const result = await summon(remembered);
+      if (result.kind === 'wrong') {
+        if (remembered) rememberWord('');
+        return askForWord();
       }
-    }, 180000); // 3 min max
+      handle(result, remembered);
+    })();
   </script>
 </body>
 </html>

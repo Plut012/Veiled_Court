@@ -3,7 +3,7 @@
 # Nets are NOT baked in — mount ./nets at /app/models (see run-local.sh).
 
 # --- Builder stage ---
-FROM rust:1.87-bookworm AS builder
+FROM docker.io/library/rust:1.87-bookworm AS builder
 
 WORKDIR /build
 COPY Cargo.toml Cargo.lock* ./
@@ -12,7 +12,7 @@ COPY src/ ./src/
 RUN cargo build --release
 
 # --- Runtime stage ---
-FROM debian:bookworm-slim
+FROM docker.io/library/debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y \
     wget \

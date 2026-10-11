@@ -1,0 +1,6 @@
+.git
+target
+coordinator/.venv
+**/__pycache__
+logs
+.env

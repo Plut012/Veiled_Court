@@ -13,10 +13,21 @@
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/themes.css">
   <link rel="stylesheet" href="css/board.css">
+  <link rel="stylesheet" href="css/room.css">
+  <link rel="stylesheet" href="css/summon.css">
 </head>
 <body>
   <div id="selection-screen">
     <h1>The Court</h1>
+
+    <!-- Summon (summon.js): wake the court before choosing. Hidden without a coordinator. -->
+    <div id="summon" hidden>
+      <button id="summon-call">the court sleeps · <span>summon</span></button>
+      <form id="summon-word" hidden autocomplete="off">
+        <input type="password" placeholder="speak the word" aria-label="the word" enterkeyhint="go">
+      </form>
+      <p id="summon-note" hidden></p>
+    </div>
 
     <div id="spirit-grid">
       <div class="spirit-card" data-spirit="crane" data-theme="theme-crane">
@@ -88,9 +99,22 @@
     </div>
 
     <button id="start-game-btn" disabled>Begin</button>
+
+    <!-- Friend rooms (room.js): pick a size, get a link to share -->
+    <div id="friend-entry">
+      <button id="friend-toggle">or play a friend</button>
+      <div id="friend-sizes" hidden>
+        <button class="friend-size" data-size="9">9</button>
+        <button class="friend-size" data-size="13">13</button>
+        <button class="friend-size" data-size="19">19</button>
+      </div>
+      <p id="friend-error"></p>
+    </div>
   </div>
 
   <script src="js/selection.js"></script>
+  <script src="js/room.js"></script>
+  <script src="js/summon.js"></script>
   <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
 </body>
 </html>

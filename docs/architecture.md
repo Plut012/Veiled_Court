@@ -249,15 +249,7 @@ The existing flat HTML files (`go-flow.html`, `2nd_theme.html`) are replaced wit
 
 ## Hosting
 
-**Two viable approaches given the RTX 2070:**
-
-**Option A — Local machine as server**
-Run the game server directly on the RTX 2070 machine. KataGo uses the GPU directly via CUDA. Expose via a reverse proxy (Nginx) with HTTPS (Cloudflare tunnel or Let's Encrypt). Simple. No latency between server and GPU.
-
-**Option B — VPS + local KataGo**
-Host the web server on a cheap VPS (for uptime and public IP). The VPS calls back to the local machine for KataGo moves via a small internal API. More complex, introduces network latency between VPS and KataGo, but separates hosting concerns from GPU machine uptime.
-
-**Recommendation: Option A** for a personal or small-scale project. The RTX 2070 handles both the game server and KataGo without conflict. Use a Cloudflare tunnel for HTTPS without a static IP.
+Superseded — see [`deploy-review.md`](deploy-review.md) for the current deployment (coordinator + on-demand RunPod GPU pod).
 
 ---
 

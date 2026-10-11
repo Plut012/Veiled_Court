@@ -1,14 +1,24 @@
-const CACHE = 'court-v1';
+const CACHE = 'court-v4';
 const ASSETS = [
   '/',
   '/index.html',
   '/local.html',
   '/game.html',
+  '/loading.html',
+  '/review.html',
+  '/css/review.css',
+  '/js/review.js',
   '/css/themes.css',
   '/css/board.css',
   '/js/board.js',
   '/js/selection.js',
+  '/js/rules.js',
   '/js/local.js',
+  '/room.html',
+  '/css/room.css',
+  '/js/room.js',
+  '/css/summon.css',
+  '/js/summon.js',
   '/js/game.js',
   '/js/websocket.js',
   '/js/theme.js',
@@ -40,9 +50,12 @@ self.addEventListener('activate', (e) => {
 });
 
 self.addEventListener('fetch', (e) => {
-  // Let WebSocket requests pass through
-  if (e.request.url.includes('/ws')) return;
+  // Only same-origin GETs: let WebSockets, the pod, /summon and /status pass through
+  const url = new URL(e.request.url);
+  if (e.request.method !== 'GET' || url.origin !== self.location.origin) return;
+  if (url.pathname === '/ws' || url.pathname === '/status') return;
 
+  // Network first, so HTML/JS are never stale; the cache is only an offline fallback
   e.respondWith(
     fetch(e.request).catch(() => caches.match(e.request))
   );

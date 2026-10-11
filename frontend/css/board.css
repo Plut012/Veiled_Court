@@ -544,3 +544,47 @@ body:has(#selection-screen) {
     font-size: 13px;
   }
 }
+
+/* Game server gone (pod went to sleep) — calm way back */
+#withdrawn {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  background: var(--board-primary);
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  color: var(--accent);
+  text-align: center;
+  padding: 0 16px;
+  animation: withdrawn-in 1.2s ease-out both;
+}
+
+#withdrawn .withdrawn-line {
+  font-style: italic;
+  font-size: 1.3rem;
+  letter-spacing: 0.08em;
+  opacity: 0.75;
+}
+
+#withdrawn .withdrawn-back {
+  color: var(--accent);
+  font-size: 1rem;
+  letter-spacing: 0.12em;
+  text-decoration: none;
+  border-bottom: 1px solid currentColor;
+  padding-bottom: 2px;
+  opacity: 0.55;
+  transition: opacity 0.3s ease;
+}
+
+#withdrawn .withdrawn-back:hover,
+#withdrawn .withdrawn-back:focus { opacity: 1; }
+
+@keyframes withdrawn-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}

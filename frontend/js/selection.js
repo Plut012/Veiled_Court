@@ -3,38 +3,6 @@
 
 let selectedSpirit = null;
 let selectedTheme = null;
-let podReady = false;
-
-// Summon the GPU pod as soon as the selection page loads.
-// The pod boots while the player browses spirits.
-let podUrl = null;
-
-fetch('/summon', { method: 'POST' })
-  .then(r => r.json())
-  .then(data => {
-    if (data.status === 'ready' && data.url) {
-      podReady = true;
-      podUrl = data.url;
-    } else {
-      pollStatus();
-    }
-  })
-  .catch(() => {
-    // Running without coordinator (direct to game server) — that's fine
-    podReady = true;
-  });
-
-function pollStatus() {
-  const poll = setInterval(() => {
-    fetch('/status').then(r => r.json()).then(data => {
-      if (data.ready && data.url) {
-        podReady = true;
-        podUrl = data.url;
-        clearInterval(poll);
-      }
-    }).catch(() => {});
-  }, 3000);
-}
 
 // Set up event listeners when DOM loads
 document.addEventListener('DOMContentLoaded', () => {
@@ -149,13 +117,17 @@ function startGame() {
   const boardSize = parseInt(activeSize ? activeSize.dataset.size : '19');
   const playerColor = activeColor ? activeColor.dataset.color : 'black';
 
+  // A new game — don't resume an old session
+  sessionStorage.removeItem('sessionId');
+
   // Store selections
   sessionStorage.setItem('selectedSpirit', selectedSpirit);
   sessionStorage.setItem('selectedTheme', selectedTheme);
   sessionStorage.setItem('playerColor', playerColor);
   sessionStorage.setItem('boardSize', boardSize);
 
-  // Encode game config as URL params (survives cross-domain redirect)
+  // Encode game config as URL params; the summon screen wakes the pod
+  // and forwards them to the game page
   const params = new URLSearchParams({
     spirit: selectedSpirit,
     theme: selectedTheme,
@@ -163,12 +135,7 @@ function startGame() {
     size: boardSize,
   });
 
-  if (podUrl) {
-    window.location.href = podUrl + '/game.html?' + params;
-  } else {
-    // Pass params in URL so loading page can forward them to the pod
-    window.location.href = '/loading.html?' + params;
-  }
+  window.location.href = '/loading.html?' + params;
 }
 
 // Load theme script for hover previews

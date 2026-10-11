@@ -12,6 +12,7 @@ mod game;
 mod katago;
 mod spirits;
 mod state;
+mod watchdog;
 mod ws;
 
 use state::AppState;
@@ -35,6 +36,9 @@ async fn main() {
 
     // Initialize shared state
     let state = Arc::new(AppState::new());
+
+    // On RunPod: stop the pod after IDLE_TIMEOUT without WebSocket activity
+    watchdog::spawn(state.clone());
 
     let app = Router::new()
         .route("/ws", get(ws::handler))

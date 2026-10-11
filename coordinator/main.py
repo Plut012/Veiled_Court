@@ -1,16 +1,22 @@
 """
 Veiled Court — Coordinator
 
-Serves the frontend, manages RunPod GPU pods on demand.
-Uses stop/resume for fast restarts instead of create/terminate.
+Serves the frontend and wakes the RunPod GPU pod on demand.
+
+Stateless: the pod is looked up by name on every call, so restarts and
+multiple coordinators share one pod. The pod stops itself when idle.
 """
 
 import asyncio
-import time
+import hmac
+import json
+import mimetypes
 import os
+import sys
+import time
+
 import httpx
-from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 from dotenv import load_dotenv
 
@@ -18,7 +24,15 @@ load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 # ── config ──
 
-RUNPOD_API_KEY = os.environ["RUNPOD_API_KEY"]
+def require_env(name: str) -> str:
+    value = os.getenv(name, "")
+    if not value:
+        sys.exit(f"[coordinator] {name} is not set. Add it to .env (see scripts/run-coordinator.sh).")
+    return value
+
+
+RUNPOD_API_KEY = require_env("RUNPOD_API_KEY")
+COURT_PASSWORD = require_env("COURT_PASSWORD")
 DOCKER_IMAGE = os.getenv("DOCKER_IMAGE", "ghcr.io/plut012/kitsune:latest")
 GPU_TYPES = os.getenv("RUNPOD_GPU_TYPES",
     "NVIDIA RTX 4000 Ada Generation,"
@@ -27,36 +41,63 @@ GPU_TYPES = os.getenv("RUNPOD_GPU_TYPES",
     "NVIDIA GeForce RTX 4070 Ti,"
     "NVIDIA RTX A5000"
 ).split(",")
-IDLE_TIMEOUT = int(os.getenv("IDLE_TIMEOUT", "600"))  # 10 min
-POLL_INTERVAL = 30
+IDLE_TIMEOUT = os.getenv("IDLE_TIMEOUT", "600")  # seconds; enforced by the pod itself
+BOOT_TIMEOUT = 600   # stop a pod that never becomes healthy after this long
+STATUS_CACHE = 3     # seconds
 
+POD_NAME = "kitsune-game"
 RUNPOD_API = "https://api.runpod.io/graphql"
-
-# ── state ──
-
-pod_state = {
-    "id": None,         # persisted pod ID (survives stop/resume)
-    "url": None,
-    "status": "off",    # off | starting | ready
-    "ready_at": None,   # when pod became ready (for grace period)
-}
 
 
 # ── RunPod API ──
 
+def gql_str(value: str) -> str:
+    """Quote a value as a GraphQL string literal."""
+    return json.dumps(value)
+
+
 async def runpod_gql(query: str) -> dict:
-    async with httpx.AsyncClient() as client:
-        resp = await client.post(
-            RUNPOD_API,
-            json={"query": query},
-            headers={"Authorization": f"Bearer {RUNPOD_API_KEY}"},
-            timeout=30,
-        )
-        return resp.json()
+    """Run a GraphQL query. Transport/HTTP failures come back as `errors` too."""
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                RUNPOD_API,
+                json={"query": query},
+                headers={"Authorization": f"Bearer {RUNPOD_API_KEY}"},
+                timeout=30,
+            )
+        result = resp.json()
+    except (httpx.HTTPError, ValueError) as e:
+        return {"errors": [{"message": f"RunPod API unreachable: {e}"}]}
+    if resp.status_code != 200 and "errors" not in result:
+        return {"errors": [{"message": f"RunPod API returned {resp.status_code}"}]}
+    return result
+
+
+async def find_pod() -> dict | None:
+    """Look up our pod by name. Prefers a RUNNING one if several exist."""
+    result = await runpod_gql("query { myself { pods { id name desiredStatus } } }")
+    if "errors" in result:
+        raise RuntimeError(result["errors"][0]["message"])
+    pods = [
+        p for p in ((result.get("data") or {}).get("myself") or {}).get("pods") or []
+        if p["name"] == POD_NAME and p["desiredStatus"] != "TERMINATED"
+    ]
+    if not pods:
+        return None
+    pods.sort(key=lambda p: p["desiredStatus"] != "RUNNING")
+    if len(pods) > 1:
+        extra = ", ".join(f"{p['id']} ({p['desiredStatus']})" for p in pods[1:])
+        print(f"[coordinator] several '{POD_NAME}' pods, using {pods[0]['id']}; others: {extra}")
+    return pods[0]
 
 
 async def create_pod() -> str:
     """Create a new pod. Tries multiple GPU types."""
+    env = ", ".join(
+        f"{{ key: {gql_str(k)}, value: {gql_str(v)} }}"
+        for k, v in [("RUST_LOG", "info"), ("RUNPOD_API_KEY", RUNPOD_API_KEY), ("IDLE_TIMEOUT", IDLE_TIMEOUT)]
+    )
     last_error = "No GPU types configured"
     for gpu_type in GPU_TYPES:
         gpu_type = gpu_type.strip()
@@ -64,15 +105,15 @@ async def create_pod() -> str:
             podFindAndDeployOnDemand(input: {{
                 cloudType: COMMUNITY,
                 gpuCount: 1,
-                gpuTypeId: "{gpu_type}",
+                gpuTypeId: {gql_str(gpu_type)},
                 volumeInGb: 0,
                 containerDiskInGb: 15,
                 minVcpuCount: 2,
                 minMemoryInGb: 8,
-                name: "kitsune-game",
-                imageName: "{DOCKER_IMAGE}",
+                name: {gql_str(POD_NAME)},
+                imageName: {gql_str(DOCKER_IMAGE)},
                 ports: "3000/http",
-                env: [{{ key: "RUST_LOG", value: "info" }}]
+                env: [{env}]
             }}) {{ id desiredStatus }}
         }}"""
         result = await runpod_gql(query)
@@ -88,7 +129,7 @@ async def create_pod() -> str:
 async def resume_pod(pod_id: str) -> bool:
     """Resume a stopped pod. Returns True if successful."""
     result = await runpod_gql(
-        f'mutation {{ podResume(input: {{ podId: "{pod_id}", gpuCount: 1 }}) {{ id desiredStatus }} }}'
+        f'mutation {{ podResume(input: {{ podId: {gql_str(pod_id)}, gpuCount: 1 }}) {{ id desiredStatus }} }}'
     )
     if "errors" in result:
         print(f"[coordinator] resume failed: {result['errors'][0]['message']}")
@@ -99,161 +140,145 @@ async def resume_pod(pod_id: str) -> bool:
 
 async def stop_pod(pod_id: str):
     """Stop a pod (preserves it for fast resume)."""
-    await runpod_gql(f'mutation {{ podStop(input: {{ podId: "{pod_id}" }}) {{ id desiredStatus }} }}')
+    await runpod_gql(f'mutation {{ podStop(input: {{ podId: {gql_str(pod_id)} }}) {{ id desiredStatus }} }}')
     print(f"[coordinator] stopped pod {pod_id}")
 
 
 async def terminate_pod(pod_id: str):
     """Terminate a pod permanently."""
-    await runpod_gql(f'mutation {{ podTerminate(input: {{ podId: "{pod_id}" }}) }}')
+    await runpod_gql(f'mutation {{ podTerminate(input: {{ podId: {gql_str(pod_id)} }}) }}')
     print(f"[coordinator] terminated pod {pod_id}")
 
 
-async def get_pod_status(pod_id: str) -> str | None:
-    """Get pod's desired status. Returns None if pod doesn't exist."""
-    result = await runpod_gql(
-        f'{{ pod(input: {{ podId: "{pod_id}" }}) {{ desiredStatus }} }}'
-    )
-    pod = result.get("data", {}).get("pod")
-    return pod["desiredStatus"] if pod else None
+def pod_url(pod_id: str) -> str:
+    return f"https://{pod_id}-3000.proxy.runpod.net"
 
 
-async def check_pod_health(pod_id: str) -> str | None:
-    """Returns proxy URL if pod is healthy, None otherwise."""
-    url = f"https://{pod_id}-3000.proxy.runpod.net"
+async def is_healthy(pod_id: str) -> bool:
     try:
         async with httpx.AsyncClient() as client:
-            resp = await client.get(f"{url}/health", timeout=5)
-            if resp.status_code == 200:
-                return url
-    except (httpx.ConnectError, httpx.ReadTimeout):
-        pass
-    return None
+            resp = await client.get(f"{pod_url(pod_id)}/health", timeout=5)
+            return resp.status_code == 200
+    except httpx.HTTPError:
+        return False
 
 
-# ── pod lifecycle ──
+# ── pod state ──
 
-async def ensure_pod_running() -> str:
-    """Get a running pod — resume if stopped, create if needed. Returns pod ID."""
+async def pod_status() -> dict:
+    """Current pod state, from RunPod + a health check: {status, ready, url?}."""
+    pod = await find_pod()
+    if not pod or pod["desiredStatus"] != "RUNNING":
+        return {"status": "off", "ready": False}
+    if await is_healthy(pod["id"]):
+        return {"status": "ready", "ready": True, "url": pod_url(pod["id"])}
+    return {"status": "starting", "ready": False}
 
-    # If we have a pod, try resuming it
-    if pod_state["id"]:
-        status = await get_pod_status(pod_state["id"])
-        if status == "RUNNING":
-            return pod_state["id"]
-        if status == "EXITED":
-            if await resume_pod(pod_state["id"]):
-                return pod_state["id"]
-            # Resume failed — pod's host is gone. Terminate and create fresh.
-            await terminate_pod(pod_state["id"])
-            pod_state["id"] = None
 
-    # Create a new pod
+_status_cache = {"at": 0.0, "value": None}
+
+
+async def cached_pod_status() -> dict:
+    if _status_cache["value"] and time.monotonic() - _status_cache["at"] < STATUS_CACHE:
+        return _status_cache["value"]
+    value = await pod_status()
+    _status_cache.update(at=time.monotonic(), value=value)
+    return value
+
+
+async def wake_pod() -> dict:
+    """Resume or create the pod. Returns the resulting status."""
+    pod = await find_pod()
+
+    if pod and pod["desiredStatus"] == "RUNNING":
+        if await is_healthy(pod["id"]):
+            return {"status": "ready", "ready": True, "url": pod_url(pod["id"])}
+        watch_boot(pod["id"])
+        return {"status": "starting", "ready": False}
+
+    if pod and pod["desiredStatus"] == "EXITED":
+        if await resume_pod(pod["id"]):
+            watch_boot(pod["id"])
+            return {"status": "starting", "ready": False}
+        # Resume failed — the pod's host is gone. Start over.
+        await terminate_pod(pod["id"])
+
     pod_id = await create_pod()
-    pod_state["id"] = pod_id
-    return pod_id
+    watch_boot(pod_id)
+    return {"status": "starting", "ready": False}
 
 
-# ── watchdog ──
-
-async def idle_watchdog():
-    """Stop (not terminate) pods that have been idle too long."""
-    while True:
-        await asyncio.sleep(POLL_INTERVAL)
-        if pod_state["status"] != "ready" or not pod_state["url"]:
-            continue
-
-        # Grace period: don't touch a pod for 5 min after it became ready
-        ready_at = pod_state.get("ready_at") or 0
-        if time.time() - ready_at < 300:
-            continue
-
-        try:
-            async with httpx.AsyncClient() as client:
-                resp = await client.get(f"{pod_state['url']}/activity", timeout=5)
-                idle_seconds = resp.json().get("idle_seconds", 0)
-        except Exception:
-            idle_seconds = IDLE_TIMEOUT + 1
-
-        if idle_seconds >= IDLE_TIMEOUT:
-            pod_id = pod_state["id"]
-            pod_state["url"] = None
-            pod_state["status"] = "off"
-            pod_state["ready_at"] = None
-            # Stop instead of terminate — preserves for fast resume
-            if pod_id:
-                await stop_pod(pod_id)
+# Safety net for pods that never boot (bad image, broken host): the pod can only
+# stop itself once the game server runs, so stop it here if it never gets healthy.
+_watched: set[str] = set()
 
 
-# ── startup / shutdown ──
+def watch_boot(pod_id: str):
+    if pod_id not in _watched:
+        _watched.add(pod_id)
+        asyncio.create_task(_watch_boot(pod_id))
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    task = asyncio.create_task(idle_watchdog())
-    print("[coordinator] started, watchdog running")
-    yield
-    task.cancel()
-    # Stop (not terminate) on shutdown — pod can be resumed next time
-    if pod_state["id"] and pod_state["status"] == "ready":
-        await stop_pod(pod_state["id"])
-        print(f"[coordinator] stopped pod {pod_state['id']} on shutdown")
+
+async def _watch_boot(pod_id: str):
+    try:
+        deadline = time.monotonic() + BOOT_TIMEOUT
+        while time.monotonic() < deadline:
+            if await is_healthy(pod_id):
+                print(f"[coordinator] pod {pod_id} ready at {pod_url(pod_id)}")
+                return
+            await asyncio.sleep(5)
+        print(f"[coordinator] pod {pod_id} never became healthy, stopping it")
+        await stop_pod(pod_id)
+    finally:
+        _watched.discard(pod_id)
 
 
 # ── app ──
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI()
+summon_lock = asyncio.Lock()
 
 
 @app.post("/summon")
-async def summon():
-    """Start or resume a GPU pod."""
-    if pod_state["status"] == "ready" and pod_state["url"]:
-        return {"status": "ready", "url": pod_state["url"]}
-
-    if pod_state["status"] == "starting":
-        return {"status": "starting"}
-
-    pod_state["status"] = "starting"
-
+async def summon(request: Request):
+    """Wake the GPU pod. Requires the court password."""
     try:
-        pod_id = await ensure_pod_running()
-    except RuntimeError as e:
-        pod_state["status"] = "off"
-        return JSONResponse({"status": "error", "message": str(e)}, status_code=503)
+        body = await request.json()
+        password = str(body.get("password", "")) if isinstance(body, dict) else ""
+    except ValueError:
+        password = ""
+    if not hmac.compare_digest(password.encode(), COURT_PASSWORD.encode()):
+        if password:
+            await asyncio.sleep(1)
+        return JSONResponse({"status": "error", "message": "wrong password"}, status_code=401)
 
-    asyncio.create_task(poll_pod_ready(pod_id))
-    return {"status": "starting"}
-
-
-async def poll_pod_ready(pod_id: str):
-    """Poll until pod is healthy."""
-    for _ in range(120):  # 10 min max
-        if pod_state["id"] != pod_id:
-            return
-        url = await check_pod_health(pod_id)
-        if url:
-            pod_state["url"] = url
-            pod_state["status"] = "ready"
-            pod_state["ready_at"] = time.time()
-            print(f"[coordinator] pod {pod_id} ready at {url}")
-            return
-        await asyncio.sleep(5)
-
-    print(f"[coordinator] pod {pod_id} timed out waiting for health")
-    pod_state["status"] = "off"
-    await stop_pod(pod_id)
+    async with summon_lock:
+        try:
+            result = await wake_pod()
+        except RuntimeError as e:
+            print(f"[coordinator] summon failed: {e}")
+            return JSONResponse({"status": "error", "message": str(e)}, status_code=503)
+        _status_cache["value"] = None
+    return result
 
 
 @app.get("/status")
 async def status():
     """Pod status for frontend polling."""
-    resp = {
-        "status": pod_state["status"],
-        "ready": pod_state["status"] == "ready",
-    }
-    if pod_state["status"] == "ready" and pod_state["url"]:
-        resp["url"] = pod_state["url"]
-    return resp
+    try:
+        return await cached_pod_status()
+    except RuntimeError as e:
+        print(f"[coordinator] status lookup failed: {e}")
+        return {"status": "off", "ready": False, "error": str(e)}
+
+
+# ── friend rooms (optional module) ──
+
+try:
+    from coordinator.rooms import router as rooms_router
+    app.include_router(rooms_router)
+except ImportError:
+    pass
 
 
 # ── serve frontend ──
@@ -261,6 +286,7 @@ async def status():
 FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "..", "frontend")
 if not os.path.isdir(FRONTEND_DIR):
     FRONTEND_DIR = os.path.join(os.getcwd(), "frontend")
+FRONTEND_ROOT = os.path.realpath(FRONTEND_DIR)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -274,9 +300,8 @@ async def entrance():
 
 @app.get("/{path:path}")
 async def serve_frontend(path: str):
-    file_path = os.path.join(FRONTEND_DIR, path)
-    if os.path.isfile(file_path):
-        import mimetypes
+    file_path = os.path.realpath(os.path.join(FRONTEND_DIR, path))
+    if file_path.startswith(FRONTEND_ROOT + os.sep) and os.path.isfile(file_path):
         content_type = mimetypes.guess_type(file_path)[0] or "application/octet-stream"
         with open(file_path, "rb") as f:
             return Response(content=f.read(), media_type=content_type)

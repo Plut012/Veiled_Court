@@ -73,6 +73,7 @@ pub async fn handler(ws: WebSocketUpgrade, State(state): State<Arc<AppState>>) -
 /// Handle individual WebSocket connection
 async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
     println!("WebSocket connection established");
+    state.touch();
 
     let (mut sender, mut receiver) = socket.split();
 
@@ -89,6 +90,9 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                     return;
                 }
             }
+            // Touch again after replying: bot moves and reviews can take a
+            // while, and the idle clock should start from when we went quiet
+            state.touch();
         }
     }
 
@@ -184,29 +188,22 @@ async fn handle_init_game(
         };
     }
 
-    // Spawn KataGo with spirit config
+    // Spawn KataGo with spirit config. Spawning and the first commands block
+    // until the nets are loaded, so keep them off the async worker threads.
     let config_path = spirit.config_file();
-    let mut katago_process = match KataGoProcess::spawn(&config_path) {
+    let setup = tokio::task::block_in_place(|| {
+        let mut process = KataGoProcess::spawn(&config_path)
+            .map_err(|e| format!("Failed to spawn KataGo: {}", e))?;
+        process.set_boardsize(board_size)
+            .map_err(|e| format!("Failed to set board size: {}", e))?;
+        process.clear_board()
+            .map_err(|e| format!("Failed to clear board: {}", e))?;
+        Ok::<_, String>(process)
+    });
+    let katago_process = match setup {
         Ok(process) => process,
-        Err(e) => {
-            return ServerMessage::Error {
-                message: format!("Failed to spawn KataGo: {}", e),
-            };
-        }
+        Err(message) => return ServerMessage::Error { message },
     };
-
-    // Initialize KataGo board
-    if let Err(e) = katago_process.set_boardsize(board_size) {
-        return ServerMessage::Error {
-            message: format!("Failed to set board size: {}", e),
-        };
-    }
-
-    if let Err(e) = katago_process.clear_board() {
-        return ServerMessage::Error {
-            message: format!("Failed to clear board: {}", e),
-        };
-    }
 
     // Create game state
     let game_state = Game::with_size(board_size);
@@ -340,9 +337,9 @@ async fn handle_request_review(state: &Arc<AppState>) -> Vec<ServerMessage> {
 
     // Run KataGo analysis on a blocking thread
     let moves_clone = move_history.clone();
+    let config_path = format!("{}/analysis.cfg", crate::spirits::config_dir());
     let analysis_result = tokio::task::spawn_blocking(move || {
-        let mut engine =
-            crate::katago::analysis::KataGoAnalysis::spawn("configs/analysis.cfg")?;
+        let mut engine = crate::katago::analysis::KataGoAnalysis::spawn(&config_path)?;
         engine.analyze_game(&moves_clone, board_size)
     })
     .await;
@@ -521,11 +518,24 @@ async fn make_human_move(
     Ok(())
 }
 
-/// Make a bot move
+/// Make a bot move, taking at least the spirit's minimum thinking time.
+/// The pause happens after the session lock is released.
 async fn make_bot_move(
     state: &Arc<AppState>,
     session_id: &SessionId,
 ) -> Result<(), String> {
+    let started = std::time::Instant::now();
+    let spirit = play_bot_move(state, session_id).await?;
+    let remaining = spirit.min_think_time().saturating_sub(started.elapsed());
+    tokio::time::sleep(remaining).await;
+    Ok(())
+}
+
+/// Generate the bot's move with KataGo and apply it. Returns the spirit.
+async fn play_bot_move(
+    state: &Arc<AppState>,
+    session_id: &SessionId,
+) -> Result<Spirit, String> {
     let mut sessions = state.sessions.lock().await;
     let session = sessions.get_mut(session_id).ok_or("Session not found")?;
 
@@ -533,19 +543,20 @@ async fn make_bot_move(
 
     // Generate bot move with spirit-specific logic
     let board_size = session.board_size;
-    let bot_position = match session.spirit {
+    // genmove blocks on KataGo's stdout, so keep it off the async worker threads
+    let bot_position = tokio::task::block_in_place(|| match session.spirit {
         Spirit::Jaguar => {
             // Use dynamic visit scaling for Jaguar
             let visits = jaguar::get_jaguar_visits(session.move_number);
             session
                 .katago_process
-                .genmove_with_visits(bot_color, visits, board_size)?
+                .genmove_with_visits(bot_color, visits, board_size)
         }
         _ => {
             // Standard genmove for other spirits
-            session.katago_process.genmove(bot_color, board_size)?
+            session.katago_process.genmove(bot_color, board_size)
         }
-    };
+    })?;
 
     // Apply bot move to game state
     session.game_state.place_stone(bot_position, bot_color)?;
@@ -562,7 +573,7 @@ async fn make_bot_move(
     session.last_move = Some(gtp_coord);
     session.move_number += 1;
 
-    Ok(())
+    Ok(session.spirit)
 }
 
 /// Convert game board to string representation

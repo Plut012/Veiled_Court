@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#0E0B1A">
+  <title>The Court</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+  <!-- Absolute paths: this page is served at /room/<code> -->
+  <link rel="manifest" href="/manifest.json">
+  <link rel="stylesheet" href="/css/themes.css">
+  <link rel="stylesheet" href="/css/board.css">
+  <link rel="stylesheet" href="/css/room.css">
+</head>
+<body>
+  <!-- Shown to black until a friend takes the white seat -->
+  <div id="room-wait" class="room-panel" hidden>
+    <p class="room-line">Send this to your friend</p>
+    <button id="share-link"></button>
+    <p id="share-hint">tap to copy</p>
+  </div>
+
+  <div id="room-missing" class="room-panel" hidden>
+    <p class="room-line">This room has faded.</p>
+    <a class="room-link" href="/index.html">return to the court</a>
+  </div>
+
+  <div id="game-screen" hidden>
+    <div id="submit-bar-top" class="submit-bar-local" style="display:none"></div>
+
+    <div id="board-container">
+      <canvas id="board"></canvas>
+    </div>
+
+    <div id="submit-bar-bottom" class="submit-bar-local" style="display:none"></div>
+
+    <div id="room-status"></div>
+
+    <div id="local-controls">
+      <button id="pass-btn">Pass</button>
+      <button id="resign-btn">Resign</button>
+    </div>
+  </div>
+
+  <script src="/js/board.js"></script>
+  <script src="/js/rules.js"></script>
+  <script src="/js/room.js"></script>
+</body>
+</html>

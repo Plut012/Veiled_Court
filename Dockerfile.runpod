@@ -2,7 +2,7 @@
 # Multi-stage build: compile Rust in a builder, copy binary to slim runtime
 
 # --- Builder stage ---
-FROM rust:1.87-bookworm AS builder
+FROM docker.io/library/rust:1.87-bookworm AS builder
 
 WORKDIR /build
 COPY Cargo.toml Cargo.lock* ./
@@ -11,7 +11,7 @@ COPY src/ ./src/
 RUN cargo build --release
 
 # --- Runtime stage ---
-FROM nvidia/cuda:12.1.0-cudnn8-runtime-ubuntu22.04
+FROM docker.io/nvidia/cuda:12.1.0-cudnn8-runtime-ubuntu22.04
 
 RUN apt-get update && apt-get install -y \
     curl \
@@ -34,13 +34,12 @@ WORKDIR /app
 # Copy compiled binary from builder
 COPY --from=builder /build/target/release/kitsune ./kitsune
 
-# Copy static assets (configs, frontend)
+# Configs only — the frontend is served by the coordinator, not the pod
 COPY configs/ ./configs/
-COPY frontend/ ./frontend/
 
 # Copy neural networks into image
-COPY assets/katago/kata1-b28c512nbt.bin.gz /app/models/
-COPY assets/katago/b18c384nbt-humanv0.bin.gz /app/models/
+COPY nets/kata1-b28c512nbt.bin.gz /app/models/
+COPY nets/b18c384nbt-humanv0.bin.gz /app/models/
 
 EXPOSE 3000
 

@@ -1,5 +1,11 @@
 use serde::{Deserialize, Serialize};
 
+/// Directory holding KataGo configs
+/// Checks KITSUNE_CONFIG_DIR env var first (for dev mode), falls back to "configs/"
+pub fn config_dir() -> String {
+    std::env::var("KITSUNE_CONFIG_DIR").unwrap_or_else(|_| "configs".to_string())
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum Spirit {
     Dragon,
@@ -14,11 +20,26 @@ pub enum Spirit {
 }
 
 impl Spirit {
-    /// Get the config file path for this spirit
-    /// Checks KITSUNE_CONFIG_DIR env var first (for dev mode), falls back to "configs/"
+    /// Minimum time a spirit takes before answering a move — the pause is part
+    /// of its character. KataGo's own search time counts toward it.
+    pub fn min_think_time(&self) -> std::time::Duration {
+        let secs = match self {
+            Spirit::PrayingMantis => 6.0, // stillness, then not
+            Spirit::Dragon => 5.0,
+            Spirit::Crane => 4.5,
+            Spirit::Eagle => 4.0,
+            Spirit::Spider => 4.0,
+            Spirit::Jaguar => 3.5,
+            Spirit::Lion => 3.0,
+            Spirit::Crow => 3.0,
+            Spirit::MantisShrimp => 2.0, // its search is long already
+        };
+        std::time::Duration::from_secs_f64(secs)
+    }
+
+    /// Get the config file path for this spirit (see `config_dir`)
     pub fn config_file(&self) -> String {
-        let config_dir = std::env::var("KITSUNE_CONFIG_DIR")
-            .unwrap_or_else(|_| "configs".to_string());
+        let config_dir = config_dir();
 
         let filename = match self {
             Spirit::Dragon => "dragon.cfg",

@@ -2,6 +2,8 @@
 name = "kitsune"
 version = "0.1.0"
 edition = "2021"
+# Matches the Docker builder image (rust:1.87-bookworm); keeps the lockfile MSRV-compatible
+rust-version = "1.87"
 
 [dependencies]
 axum = { version = "0.7", features = ["ws"] }
@@ -12,3 +14,5 @@ serde_json = "1"
 futures = "0.3"
 uuid = { version = "1", features = ["v4"] }
 chrono = "0.4"
+# Pod self-stop calls the RunPod API; rustls keeps OpenSSL out of the image
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }

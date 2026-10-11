@@ -27,28 +27,8 @@ else
 fi
 
 # ── nets ──
-STANDARD_NET="nets/kata1-b28c512nbt.bin.gz"
-HUMAN_NET="nets/b18c384nbt-humanv0.bin.gz"
-
 if [ "${MOCK:-0}" != "1" ]; then
-    mkdir -p nets
-
-    if [ ! -s "$STANDARD_NET" ] || file "$STANDARD_NET" | grep -qv gzip; then
-        echo "── downloading standard net (~500MB, one time)..."
-        # URL rotates with each training run — scrape the current one
-        URL=$(curl -s https://katagotraining.org/ \
-            | grep -oE 'https://media\.katagotraining\.org/uploaded/networks/models/kata1/kata1-b28c512nbt[^"]+\.bin\.gz' \
-            | head -1)
-        [ -n "$URL" ] || { echo "error: could not find net URL — download manually from katagotraining.org to $STANDARD_NET" >&2; exit 1; }
-        curl -L -o "$STANDARD_NET" "$URL"
-        file "$STANDARD_NET" | grep -q gzip || { echo "error: download failed (not a gzip file)" >&2; exit 1; }
-    fi
-
-    if [ ! -s "$HUMAN_NET" ]; then
-        echo "── downloading human net (~100MB, one time)..."
-        curl -L -o "$HUMAN_NET" \
-            "https://github.com/lightvector/KataGo/releases/download/v1.15.0/b18c384nbt-humanv0.bin.gz"
-    fi
+    ./scripts/download_nets.sh
 fi
 
 # ── build ──

@@ -1,0 +1,115 @@
+/* Summon line — sits under the title on the selection screen (summon.js) */
+
+#summon {
+  text-align: center;
+  min-height: 2rem;
+  margin: -14px 0 22px;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-style: italic;
+  font-size: 17px;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+#summon[hidden],
+#summon [hidden] {
+  display: none;
+}
+
+#summon-call {
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+  transition: color 0.3s ease;
+}
+
+#summon-call span {
+  border-bottom: 1px solid currentColor;
+}
+
+#summon-call:hover,
+#summon-call:focus-visible {
+  color: rgba(255, 255, 255, 0.85);
+  outline: none;
+}
+
+#summon-word input {
+  width: 12rem;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 0;
+  outline: none;
+  color: rgba(255, 255, 255, 0.85);
+  font: inherit;
+  font-size: 17px; /* ≥16px so mobile browsers don't zoom */
+  letter-spacing: 0.2em;
+  text-align: center;
+  padding: 2px 0;
+  caret-color: rgba(255, 255, 255, 0.85);
+  animation: summon-emerge 0.6s ease-out both;
+}
+
+#summon-word input::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+  letter-spacing: 0.08em;
+}
+
+#summon-word.shiver {
+  animation: summon-shiver 0.45s ease-in-out;
+}
+
+#summon-note {
+  margin: 0;
+  animation: summon-emerge 0.6s ease-out both;
+}
+
+#summon[data-state="waking"] #summon-note {
+  animation: summon-emerge 0.6s ease-out both, summon-breathe 3s ease-in-out 0.6s infinite;
+}
+
+/* Awake: a small steady light before the words */
+#summon[data-state="awake"] #summon-note {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+#summon[data-state="awake"] #summon-note::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin: 0 10px 2px 0;
+  border-radius: 50%;
+  background: var(--accent, #D4C4A0);
+  box-shadow: 0 0 8px var(--accent, #D4C4A0);
+  vertical-align: middle;
+}
+
+@keyframes summon-emerge {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes summon-breathe {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 1; }
+}
+
+@keyframes summon-shiver {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-4px); }
+  40% { transform: translateX(3px); }
+  60% { transform: translateX(-2px); }
+  80% { transform: translateX(1px); }
+}
+
+@media (max-width: 600px) {
+  #summon { margin: -6px 0 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #summon * { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
+}

@@ -2,7 +2,7 @@
 // Handles board interactions, game controls, and connection lifecycle
 
 document.addEventListener('DOMContentLoaded', () => {
-  // Read game config from URL params (cross-domain) or sessionStorage (local dev)
+  // Read game config from URL params (set by the summon screen) or sessionStorage
   const params = new URLSearchParams(window.location.search);
   const selectedSpirit = params.get('spirit') || sessionStorage.getItem('selectedSpirit');
   const selectedTheme = params.get('theme') || sessionStorage.getItem('selectedTheme');

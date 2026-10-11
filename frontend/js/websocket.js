@@ -14,9 +14,25 @@ class GameClient {
     this.maxReconnectAttempts = 5;
   }
 
-  connect() {
+  // The game server: the GPU pod passed as ?pod=<url> by the summon screen,
+  // or this page's own host when the Rust server serves the frontend (run-local.sh).
+  wsUrl() {
+    const pod = new URLSearchParams(window.location.search).get('pod');
+    if (pod) {
+      try {
+        const url = new URL(pod);
+        if (url.protocol === 'https:') return `wss://${url.host}/ws`;
+        if (url.protocol === 'http:') return `ws://${url.host}/ws`;
+      } catch (e) {
+        console.warn('Ignoring invalid pod URL:', pod);
+      }
+    }
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws`;
+    return `${protocol}//${window.location.host}/ws`;
+  }
+
+  connect() {
+    const wsUrl = this.wsUrl();
 
     console.log('Connecting to WebSocket:', wsUrl);
 
@@ -64,7 +80,7 @@ class GameClient {
       }, delay);
     } else {
       console.error('Max reconnection attempts reached');
-      this.showError('Connection lost. Please refresh the page.');
+      this.showWithdrawn();
     }
   }
 
@@ -117,7 +133,7 @@ class GameClient {
       this.ws.send(JSON.stringify(message));
     } else {
       console.error('WebSocket not connected');
-      this.showError('Not connected to server');
+      if (this.reconnectAttempts >= this.maxReconnectAttempts) this.showWithdrawn();
     }
   }
 
@@ -320,6 +336,20 @@ class GameClient {
   showError(message) {
     // Simple error display
     alert(message);
+  }
+
+  // The game server is gone (the pod stopped itself while idle) — say so
+  // calmly and offer the way back instead of leaving a dead page.
+  showWithdrawn() {
+    if (document.getElementById('withdrawn')) return;
+    sessionStorage.removeItem('sessionId');
+    const el = document.createElement('div');
+    el.id = 'withdrawn';
+    el.innerHTML = `
+      <div class="withdrawn-line">the spirit has withdrawn to rest</div>
+      <a class="withdrawn-back" href="/index.html">return to the court</a>
+    `;
+    document.body.appendChild(el);
   }
 }
 

@@ -1,37 +1,48 @@
 #!/bin/bash
 # ──────────────────────────────────────
-#  Veiled Court — Build & Push Docker Image
+#  Veiled Court — Build & Push the GPU pod image
 #  Pushes to GitHub Container Registry for RunPod to pull.
+#  Only needed when src/ or configs/ change (the frontend lives on the coordinator).
 # ──────────────────────────────────────
 
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-source .env
+[ -f .env ] && source .env
 
 IMAGE="${DOCKER_IMAGE:-ghcr.io/plut012/kitsune:latest}"
 
-echo ""
-echo "═══ Building Veiled Court Docker Image ═══"
-echo ""
-echo "  Image: $IMAGE"
-echo ""
+if command -v podman &>/dev/null; then
+    ENGINE=podman
+elif command -v docker &>/dev/null; then
+    ENGINE=docker
+else
+    echo "error: need podman or docker" >&2
+    exit 1
+fi
 
-# Log into GHCR
-echo "  → logging into ghcr.io..."
-echo "$GITHUB_PAT" | docker login ghcr.io -u "$GITHUB_USER" --password-stdin 2>/dev/null
-echo "  ✓ authenticated"
+./scripts/download_nets.sh
 
-# Build
-echo "  → building image..."
-docker build -t "$IMAGE" -f Dockerfile.runpod .
+# Log into ghcr.io: GITHUB_PAT from .env, else the gh CLI's token
+# (needs: gh auth refresh -h github.com -s write:packages), else an existing login
+if [ -n "${GITHUB_PAT:-}" ] && [ -n "${GITHUB_USER:-}" ]; then
+    echo "── logging into ghcr.io..."
+    echo "$GITHUB_PAT" | $ENGINE login ghcr.io -u "$GITHUB_USER" --password-stdin >/dev/null
+elif command -v gh &>/dev/null && gh auth status &>/dev/null; then
+    echo "── logging into ghcr.io via gh..."
+    gh auth token | $ENGINE login ghcr.io -u "$(gh api user -q .login)" --password-stdin >/dev/null
+fi
 
-echo "  ✓ image built"
+echo "── building $IMAGE..."
+$ENGINE build -t "$IMAGE" -f Dockerfile.runpod .
+
+echo "── pushing..."
+$ENGINE push "$IMAGE"
+
 echo ""
-echo "  → pushing to registry..."
-docker push "$IMAGE"
-
-echo "  ✓ pushed: $IMAGE"
+echo "  pushed: $IMAGE"
 echo ""
-echo "  Next: ./scripts/runpod-pod.sh start"
+echo "  A stopped pod may resume with its cached image. To be sure it runs this build,"
+echo "  terminate the 'kitsune-game' pod in the RunPod console — the next"
+echo "  summon creates a fresh one."
 echo ""

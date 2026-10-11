@@ -55,15 +55,60 @@ Browser ──▶ Coordinator (FastAPI)          ──RunPod API──▶  Game
    `netfilter-persistent` without installing it (port 80 rule may not survive
    reboot); `target/` is gitignored but partly tracked.
 
-## Candidate direction (to discuss)
+## Target setup (agreed 2026-10-10)
 
-- **Frontend lives only on the coordinator.** The game page opens its
-  WebSocket directly to the pod URL instead of navigating there. One origin,
-  one copy; pod image only changes when Rust/configs change.
-- **Coordinator discovers its pod by name** (`kitsune-game`) via the RunPod
-  API on startup — survives restarts, shared by local and deployed
-  coordinators.
-- **One documented path per job:** local CPU (`run-local.sh`), local
-  frontend + RunPod (`run-coordinator.sh`), deploy (`deploy-oracle.sh`),
-  build/push pod image. Remove the rest.
-- **Shared secret on `/summon`.**
+```
+Browser ──HTTPS──▶ cloudflared tunnel ──▶ Coordinator (your machine; later any small host)
+                                          • serves the ONLY copy of the frontend
+                                          • POST /summon (password) → resume/create pod
+                                          • GET /status → pod lookup + health
+                                          • /room/<code> WebSocket → friend games (no GPU)
+   │
+   └── bot games: page opens WS directly ──▶ RunPod GPU pod (Rust + KataGo)
+                                             • stops ITSELF after 10 min idle
+```
+
+Principles:
+
+- **Pod stops itself.** The pod calls the RunPod API to stop itself when idle,
+  using its own pod ID + API key from env. A sleeping laptop, crashed or
+  absent coordinator can never leave a GPU billing.
+- **Stateless coordinator.** No in-memory pod ID: every call looks the pod up
+  by name (`kitsune-game`). Restarts, redeploys and multiple coordinators are
+  safe and share one pod.
+- **One frontend copy**, served by the coordinator. Bot games connect their
+  WebSocket straight to `wss://<pod>-3000.proxy.runpod.net/ws`. The pod image
+  only changes when Rust/configs change. The Rust server still serves the
+  frontend itself for `run-local.sh` (CPU/mock), with no coordinator.
+- **Password only on `/summon`** — the only thing that costs money. One shared
+  password (`COURT_PASSWORD` in `.env`), remembered by the browser. Friend
+  games and static pages are open.
+- **Friend games are anonymous rooms.** Share a link `/room/<code>`. The
+  coordinator relays moves and keeps the move list (so reconnects resume);
+  both clients apply the existing JS rules from `local.js`. No GPU, no
+  accounts.
+- **Hosting:** run the coordinator locally and share it with
+  `cloudflared tunnel --url http://localhost:8000` (free, HTTPS, no account;
+  URL changes per run). Move the same coordinator to a small host or a named
+  tunnel + domain when that gets annoying — no code changes.
+- **Summon screen:** pick a spirit → the screen takes its palette → one line,
+  *"speak the word"*, single underline input. Correct: the line dissolves into
+  the breathing status text + thin progress bar while the pod wakes. Wrong:
+  the line shivers and fades. Minimal, matches the existing aesthetic.
+
+## Implementation plan
+
+Status: steps 1–6 implemented and validated against RunPod 2026-10-10 (create, reuse, cross-origin WS game, self-stop after 10 min idle, resume in ~30s). Browser walkthrough pending.
+
+1. **Pod self-stop** (Rust): idle watchdog inside the game server, active only
+   when `RUNPOD_POD_ID` is set. Also: analysis engine respects
+   `KITSUNE_CONFIG_DIR` (fixes problem 6).
+2. **Stateless coordinator**: pod lookup by name, resume/create, health-based
+   status; passes `RUNPOD_API_KEY` to the pod for self-stop.
+3. **One frontend copy**: game page takes the pod URL as a param and connects
+   its WebSocket there; navigation always returns to the coordinator.
+4. **Password + summon screen.**
+5. **Friend rooms.**
+6. **Cleanup**: remove stale scripts/configs/docs (problem 5), untrack
+   `target/`, update README to the three paths: `run-local.sh` (all CPU),
+   `scripts/run-coordinator.sh` (+ tunnel), pod image build/push.
